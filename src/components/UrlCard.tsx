@@ -1,38 +1,57 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, type CSSProperties } from "react";
+import {
+  ArrowUpRight,
+  BookOpen,
+  Clock3,
+  CircleAlert,
+  MessageCircle,
+  Microscope,
+  Newspaper,
+  Tag,
+  type LucideIcon,
+} from "lucide-react";
 import type { UrlEntry, BlogSummary, SentimentType } from "../types";
 
 const SENTIMENT_CONFIG: Record<
   SentimentType,
-  { label: string; color: string; icon: string }
+  { label: string; color: string; icon: LucideIcon }
 > = {
-  tutorial: { label: "Tutorial", color: "#22d3ee", icon: "📖" },
-  opinion: { label: "Opinion", color: "#f472b6", icon: "💬" },
-  news: { label: "News", color: "#fb923c", icon: "📰" },
-  reference: { label: "Reference", color: "#a78bfa", icon: "📚" },
-  "case-study": { label: "Case Study", color: "#4ade80", icon: "🔬" },
+  tutorial: { label: "Tutorial", color: "#22d3ee", icon: BookOpen },
+  opinion: { label: "Opinion", color: "#f472b6", icon: MessageCircle },
+  news: { label: "News", color: "#fb923c", icon: Newspaper },
+  reference: { label: "Reference", color: "#a78bfa", icon: BookOpen },
+  "case-study": { label: "Case Study", color: "#4ade80", icon: Microscope },
 };
 
 function SentimentBadge({ sentiment }: { sentiment: SentimentType }) {
   const cfg = SENTIMENT_CONFIG[sentiment] ?? {
     label: sentiment,
     color: "#94a3b8",
-    icon: "🏷️",
+    icon: Tag,
   };
+  const Icon = cfg.icon;
+
   return (
     <span
-      className="sentiment-badge"
-      style={{ "--sentiment-color": cfg.color } as React.CSSProperties}
+      className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[11px] font-medium uppercase tracking-[0.18em]"
+      style={
+        { color: cfg.color, borderColor: `${cfg.color}33` } as CSSProperties
+      }
     >
-      {cfg.icon} {cfg.label}
+      <Icon size={12} strokeWidth={2} />
+      {cfg.label}
     </span>
   );
 }
 
 function TagList({ tags }: { tags: string[] }) {
   return (
-    <div className="tag-list">
+    <div className="mt-4 flex flex-wrap gap-2">
       {tags.map((tag) => (
-        <span key={tag} className="tag">
+        <span
+          key={tag}
+          className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[11px] uppercase tracking-[0.2em] text-slate-400"
+        >
           {tag}
         </span>
       ))}
@@ -42,11 +61,8 @@ function TagList({ tags }: { tags: string[] }) {
 
 function ReadTime({ minutes }: { minutes: number }) {
   return (
-    <span className="read-time">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        <circle cx="12" cy="12" r="10" />
-        <polyline points="12 6 12 12 16 14" />
-      </svg>
+    <span className="inline-flex items-center gap-1.5 text-sm text-slate-400">
+      <Clock3 size={14} strokeWidth={2} />
       {minutes} min read
     </span>
   );
@@ -54,15 +70,15 @@ function ReadTime({ minutes }: { minutes: number }) {
 
 function ResultCard({ result }: { result: BlogSummary }) {
   return (
-    <div className="result-card">
-      <div className="result-header">
-        <h3 className="result-title">{result.title}</h3>
-        <div className="result-meta">
+    <div>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <h3 className="text-lg font-semibold text-slate-100">{result.title}</h3>
+        <div className="flex flex-wrap items-center gap-2">
           <SentimentBadge sentiment={result.sentiment} />
           <ReadTime minutes={result.read_time_minutes} />
         </div>
       </div>
-      <p className="result-summary">{result.summary}</p>
+      <p className="mt-3 text-sm leading-7 text-slate-300">{result.summary}</p>
       <TagList tags={result.tags} />
     </div>
   );
@@ -70,14 +86,14 @@ function ResultCard({ result }: { result: BlogSummary }) {
 
 function StreamPreview({ text }: { text: string }) {
   return (
-    <div className="stream-preview">
-      <div className="stream-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          <span className="stream-dot" />
-          <span className="stream-label">Generating…</span>
-        </div>
+    <div className="rounded-xl border border-white/10 bg-slate-950/35 p-4">
+      <div className="flex items-center gap-2">
+        <span className="h-2.5 w-2.5 rounded-full bg-cyan-400" />
+        <span className="text-sm font-medium text-slate-200">Generating…</span>
       </div>
-      <pre className="stream-text">{text || " "}</pre>
+      <pre className="stream-text mt-3 whitespace-pre-wrap break-words text-sm leading-7 text-slate-300">
+        {text || " "}
+      </pre>
     </div>
   );
 }
@@ -90,15 +106,20 @@ export function UrlCard({ entry }: UrlCardProps) {
   const [liveElapsed, setLiveElapsed] = useState<number | undefined>(undefined);
 
   useEffect(() => {
-    const isActive = ["fetching", "analyzing", "streaming"].includes(entry.status);
+    const isActive = ["fetching", "analyzing", "streaming"].includes(
+      entry.status,
+    );
     if (isActive && entry.startTime) {
-      // Defer initial setState to prevent synchronous render cascading
       const timer = setTimeout(() => {
-        setLiveElapsed(parseFloat(((Date.now() - entry.startTime!) / 1000).toFixed(1)));
+        setLiveElapsed(
+          parseFloat(((Date.now() - entry.startTime!) / 1000).toFixed(1)),
+        );
       }, 0);
 
       const interval = setInterval(() => {
-        setLiveElapsed(parseFloat(((Date.now() - entry.startTime!) / 1000).toFixed(1)));
+        setLiveElapsed(
+          parseFloat(((Date.now() - entry.startTime!) / 1000).toFixed(1)),
+        );
       }, 100);
 
       return () => {
@@ -128,40 +149,55 @@ export function UrlCard({ entry }: UrlCardProps) {
     error: "Failed",
   };
 
+  const pillClasses = {
+    idle: "border-white/10 bg-white/[0.04] text-slate-300",
+    fetching: "border-sky-400/20 bg-sky-500/10 text-sky-200",
+    analyzing: "border-violet-400/20 bg-violet-500/10 text-violet-200",
+    streaming: "border-cyan-400/20 bg-cyan-500/10 text-cyan-200",
+    done: "border-emerald-400/20 bg-emerald-500/10 text-emerald-200",
+    error: "border-rose-400/20 bg-rose-500/10 text-rose-200",
+  };
+
   return (
-    <article className={`url-card card-${entry.status}`} id={`card-${entry.id}`}>
-      <div className="card-url-bar">
+    <article
+      className={`rounded-2xl border bg-white/[0.035] p-4 shadow-[0_14px_40px_rgba(2,6,23,0.24)] backdrop-blur-sm ${entry.status === "error" ? "border-rose-400/20" : entry.status === "done" ? "border-emerald-400/20" : "border-white/10"}`}
+      id={`card-${entry.id}`}
+    >
+      <div className="flex flex-wrap items-center gap-2">
         <a
           href={entry.url}
           target="_blank"
           rel="noopener noreferrer"
-          className="card-url-text"
+          className="flex items-center gap-1 truncate text-sm font-medium text-slate-100 transition hover:text-violet-300"
         >
           {hostname}
-          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ marginLeft: 4, opacity: 0.5 }}>
-            <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6" />
-            <polyline points="15 3 21 3 21 9" />
-            <line x1="10" y1="14" x2="21" y2="3" />
-          </svg>
+          <ArrowUpRight size={10} strokeWidth={2.5} className="opacity-60" />
         </a>
         {displayedTime !== undefined && (
-          <span className="card-elapsed-time">⏱️ {displayedTime}s</span>
+          <span className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[11px] text-slate-400">
+            <Clock3 size={12} strokeWidth={2} />
+            {displayedTime}s
+          </span>
         )}
-        <span className={`status-pill pill-${entry.status}`}>
-          {entry.status === "fetching" || entry.status === "streaming" || entry.status === "analyzing" ? (
+        <span
+          className={`ml-auto inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-[11px] font-medium uppercase tracking-[0.2em] ${pillClasses[entry.status] ?? pillClasses.idle}`}
+        >
+          {entry.status === "fetching" ||
+          entry.status === "streaming" ||
+          entry.status === "analyzing" ? (
             <span className="spinner-sm" />
           ) : null}
           {statusLabel[entry.status]}
         </span>
       </div>
 
-      <div className="card-body">
+      <div className="mt-4">
         {(entry.status === "fetching" || entry.status === "analyzing") && (
-          <div className="card-placeholder">
+          <div className="rounded-xl border border-white/10 bg-slate-950/40 p-4">
             <div className="shimmer-line w-3/4" />
             <div className="shimmer-line w-full" />
             <div className="shimmer-line w-5/6" />
-            <div className="shimmer-line w-1/2 mt-2" />
+            <div className="shimmer-line mt-2 w-1/2" />
           </div>
         )}
 
@@ -174,12 +210,8 @@ export function UrlCard({ entry }: UrlCardProps) {
         )}
 
         {entry.status === "error" && (
-          <div className="card-error">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="12" cy="12" r="10" />
-              <line x1="15" y1="9" x2="9" y2="15" />
-              <line x1="9" y1="9" x2="15" y2="15" />
-            </svg>
+          <div className="flex items-start gap-2 rounded-xl border border-rose-400/20 bg-rose-500/10 p-3 text-sm text-rose-200">
+            <CircleAlert size={20} strokeWidth={2} />
             <span>{entry.error ?? "Unknown error occurred"}</span>
           </div>
         )}
