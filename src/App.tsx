@@ -33,6 +33,7 @@ function App() {
   });
   const [modelFile, setModelFile] = useState(DEFAULT_MODEL);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const resultsScrollRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef(false);
 
   const handleLoadModel = useCallback(async (path: string) => {
@@ -51,13 +52,10 @@ function App() {
   }, []);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => {
+    if (modelStatus.state === "idle") {
       void handleLoadModel(modelFile);
-    }, 0);
-
-    return () => window.clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    }
+  }, [handleLoadModel, modelFile, modelStatus.state]);
 
   const handleChangeModel = () => {
     fileInputRef.current?.click();
@@ -198,7 +196,7 @@ function App() {
 
   const doneCount = urls.filter((entry) => entry.status === "done").length;
   const errorCount = urls.filter((entry) => entry.status === "error").length;
-  const totalCount = urls.length;
+  const pendingCount = urls.length - doneCount - errorCount;
 
   const inProgressEntry = urls.find(
     (entry) =>
@@ -211,161 +209,176 @@ function App() {
     (entry) => entry.status === "done" || entry.status === "error",
   );
 
+  useEffect(() => {
+    if (resultsScrollRef.current && completedEntries.length > 0) {
+      resultsScrollRef.current.scrollTop =
+        resultsScrollRef.current.scrollHeight;
+    }
+  }, [completedEntries.length, isRunning]);
+
   const hasStarted = urls.some((entry) => entry.status !== "idle");
+  const showModelOverlay = modelStatus.state !== "ready";
 
   return (
-    <div className="mx-auto flex w-full max-w-7xl flex-col gap-0 px-6 pb-20 sm:px-8 lg:px-10">
-      <header className="flex items-center justify-between gap-4 py-10">
-        <div className="flex items-center gap-4">
-          <div className="flex h-13 w-13 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-500 to-cyan-400 text-white shadow-[0_0_24px_rgba(139,92,246,0.25)]">
-            <Orbit size={24} strokeWidth={1.8} />
+    <div className="relative min-h-screen bg-slate-950 text-slate-100">
+      {showModelOverlay && (
+        <ModelBanner
+          variant="overlay"
+          status={modelStatus}
+          modelFile={modelFile}
+          onChangeModel={handleChangeModel}
+        />
+      )}
+
+      <div className="flex h-screen max-h-screen flex-col overflow-hidden px-6 pb-6 sm:px-8 lg:px-10">
+        <header className="flex shrink-0 items-start justify-between gap-4 py-6">
+          <div className="flex items-center gap-4">
+            <div className="flex h-13 w-13 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-500 to-cyan-400 text-white shadow-[0_0_24px_rgba(139,92,246,0.25)]">
+              <Orbit size={24} strokeWidth={1.8} />
+            </div>
+            <div>
+              <h1 className="bg-linear-to-r from-white via-violet-200 to-violet-400 bg-clip-text text-[28px] font-semibold tracking-[-0.02em] text-transparent">
+                BlogLens
+              </h1>
+              <p className="mt-1 text-sm text-slate-500">
+                On-device AI blog summarizer
+              </p>
+            </div>
           </div>
-          <div>
-            <h1 className="bg-gradient-to-r from-white via-violet-200 to-violet-400 bg-clip-text text-[28px] font-semibold tracking-[-0.02em] text-transparent">
-              BlogLens
-            </h1>
-            <p className="mt-1 text-sm text-slate-500">
-              On-device AI blog summarizer
-            </p>
-          </div>
-        </div>
-        {(doneCount > 0 || errorCount > 0) && (
-          <div className="flex flex-shrink-0 gap-2">
-            {doneCount > 0 && (
+
+          <div className="flex flex-col items-end gap-3">
+            <div className="flex flex-wrap items-center justify-end gap-2">
               <span className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1.5 text-sm font-medium text-emerald-200">
-                ✓ {doneCount} done
+                ✓ {doneCount} success
               </span>
-            )}
-            {errorCount > 0 && (
+              <span className="rounded-full border border-amber-400/20 bg-amber-500/10 px-3 py-1.5 text-sm font-medium text-amber-200">
+                ● {pendingCount} pending
+              </span>
               <span className="rounded-full border border-rose-400/20 bg-rose-500/10 px-3 py-1.5 text-sm font-medium text-rose-200">
-                ✕ {errorCount} failed
+                ✕ {errorCount} error
               </span>
-            )}
+            </div>
           </div>
-        )}
-      </header>
+        </header>
 
-      <ModelBanner
-        status={modelStatus}
-        modelFile={modelFile}
-        onChangeModel={handleChangeModel}
-      />
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".litertlm"
+          className="hidden"
+          onChange={handleFileChange}
+          id="model-file-input"
+        />
 
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept=".litertlm"
-        className="hidden"
-        onChange={handleFileChange}
-        id="model-file-input"
-      />
+        <div
+          className={`grid min-h-0 flex-1 gap-6 ${hasStarted ? "xl:grid-cols-[minmax(280px,1.2fr)_1.5fr_1.5fr]" : "grid-cols-1"}`}
+        >
+          <section className="flex min-h-0 flex-col overflow-hidden">
+            <div className="mb-3.5 flex shrink-0 items-center gap-2">
+              <span className="rounded border border-violet-400/20 bg-violet-500/10 px-2 py-0.5 font-mono text-[11px] text-violet-300">
+                01
+              </span>
+              <span className="text-sm font-semibold uppercase tracking-[0.24em] text-slate-200">
+                Add URLs
+              </span>
+              <span className="text-sm text-slate-500">Paste one or many</span>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+              <UrlInputPanel
+                urls={urls}
+                onAdd={addUrl}
+                onRemove={removeUrl}
+                onClear={clearUrls}
+                onAnalyze={handleAnalyze}
+                isRunning={isRunning}
+                modelReady={modelStatus.state === "ready"}
+              />
+            </div>
+          </section>
 
-      <div
-        className={`grid gap-6 ${hasStarted ? "xl:grid-cols-[minmax(280px,1.2fr)_1.5fr_1.5fr]" : "grid-cols-1"}`}
-      >
-        <div className="min-w-0">
-          <div className="mb-3.5 flex items-center gap-2">
-            <span className="rounded border border-violet-400/20 bg-violet-500/10 px-2 py-0.5 font-mono text-[11px] text-violet-300">
-              01
-            </span>
-            <span className="text-sm font-semibold uppercase tracking-[0.24em] text-slate-200">
-              Add URLs
-            </span>
-            <span className="text-sm text-slate-500">Paste one or many</span>
-          </div>
-          <UrlInputPanel
-            urls={urls}
-            onAdd={addUrl}
-            onRemove={removeUrl}
-            onClear={clearUrls}
-            onAnalyze={handleAnalyze}
-            isRunning={isRunning}
-            modelReady={modelStatus.state === "ready"}
-          />
+          {hasStarted && (
+            <section className="flex min-h-0 flex-col overflow-hidden">
+              <div className="mb-3.5 flex shrink-0 items-center gap-2">
+                <span className="rounded border border-violet-400/20 bg-violet-500/10 px-2 py-0.5 font-mono text-[11px] text-violet-300">
+                  02
+                </span>
+                <span className="text-sm font-semibold uppercase tracking-[0.24em] text-slate-200">
+                  In Progress
+                </span>
+                {inProgressEntry && (
+                  <span className="text-sm text-slate-500">● Live</span>
+                )}
+              </div>
+              <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+                {inProgressEntry ? (
+                  <InProgressCard entry={inProgressEntry} />
+                ) : (
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-6 text-center text-sm text-slate-500 backdrop-blur-sm">
+                    {isRunning ? (
+                      <div className="flex items-center justify-center gap-2">
+                        <span className="spinner" /> Processing…
+                      </div>
+                    ) : (
+                      <span>No active job</span>
+                    )}
+                  </div>
+                )}
+              </div>
+            </section>
+          )}
+
+          {hasStarted && (
+            <section className="flex min-h-0 flex-col overflow-hidden">
+              <div className="mb-3.5 flex shrink-0 flex-wrap items-center gap-2">
+                <span className="rounded border border-violet-400/20 bg-violet-500/10 px-2 py-0.5 font-mono text-[11px] text-violet-300">
+                  03
+                </span>
+                <span className="text-sm font-semibold uppercase tracking-[0.24em] text-slate-200">
+                  Completed
+                </span>
+                {doneCount > 0 && (
+                  <button
+                    id="export-json-btn"
+                    className="ml-auto inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/4 px-3 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+                    onClick={handleExportJson}
+                    title="Export completed summaries to JSON"
+                  >
+                    <Download size={12} strokeWidth={2.2} />
+                    Export
+                  </button>
+                )}
+              </div>
+              <div
+                ref={resultsScrollRef}
+                className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1"
+                id="results-grid"
+              >
+                {completedEntries.length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-white/10 bg-white/2 p-6 text-center text-sm text-slate-500">
+                    Results will appear here…
+                  </div>
+                ) : (
+                  completedEntries.map((entry) => (
+                    <UrlCard key={entry.id} entry={entry} />
+                  ))
+                )}
+              </div>
+            </section>
+          )}
         </div>
 
-        {hasStarted && (
-          <div className="min-w-0">
-            <div className="mb-3.5 flex items-center gap-2">
-              <span className="rounded border border-violet-400/20 bg-violet-500/10 px-2 py-0.5 font-mono text-[11px] text-violet-300">
-                02
-              </span>
-              <span className="text-sm font-semibold uppercase tracking-[0.24em] text-slate-200">
-                In Progress
-              </span>
-              {inProgressEntry && (
-                <span className="text-sm text-slate-500">● Live</span>
-              )}
-            </div>
-            <div className="space-y-4">
-              {inProgressEntry ? (
-                <InProgressCard entry={inProgressEntry} />
-              ) : (
-                <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-6 text-center text-sm text-slate-500 backdrop-blur-sm">
-                  {isRunning ? (
-                    <div className="flex items-center justify-center gap-2">
-                      <span className="spinner" /> Processing…
-                    </div>
-                  ) : (
-                    <span>No active job</span>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {hasStarted && (
-          <div className="min-w-0">
-            <div className="mb-3.5 flex flex-wrap items-center gap-2">
-              <span className="rounded border border-violet-400/20 bg-violet-500/10 px-2 py-0.5 font-mono text-[11px] text-violet-300">
-                03
-              </span>
-              <span className="text-sm font-semibold uppercase tracking-[0.24em] text-slate-200">
-                Completed
-              </span>
-              <span className="ml-1 inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-xs text-slate-400">
-                <span className="text-slate-200">{doneCount + errorCount}</span>
-                <span>/</span>
-                <span>{totalCount}</span>
-              </span>
-              {doneCount > 0 && (
-                <button
-                  id="export-json-btn"
-                  className="ml-auto inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
-                  onClick={handleExportJson}
-                  disabled={isRunning}
-                  title="Export completed summaries to JSON"
-                >
-                  <Download size={12} strokeWidth={2.2} />
-                  Export
-                </button>
-              )}
-            </div>
-            <div className="space-y-4" id="results-grid">
-              {completedEntries.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.02] p-6 text-center text-sm text-slate-500">
-                  Results will appear here…
-                </div>
-              ) : (
-                completedEntries.map((entry) => (
-                  <UrlCard key={entry.id} entry={entry} />
-                ))
-              )}
-            </div>
-          </div>
-        )}
+        <footer className="mt-4 shrink-0 border-t border-white/10 pt-4 text-center text-sm text-slate-500">
+          <p>
+            Powered by{" "}
+            <strong className="font-semibold text-slate-300">LiteRT-LM</strong>{" "}
+            · Content via{" "}
+            <strong className="font-semibold text-slate-300">
+              Jina Reader
+            </strong>{" "}
+            · 100% on-device inference
+          </p>
+        </footer>
       </div>
-
-      <footer className="mt-10 border-t border-white/10 pt-6 text-center text-sm text-slate-500">
-        <p>
-          Powered by{" "}
-          <strong className="font-semibold text-slate-300">LiteRT-LM</strong> ·
-          Content via{" "}
-          <strong className="font-semibold text-slate-300">Jina Reader</strong>{" "}
-          · 100% on-device inference
-        </p>
-      </footer>
     </div>
   );
 }

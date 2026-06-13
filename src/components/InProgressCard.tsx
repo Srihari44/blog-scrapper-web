@@ -48,12 +48,6 @@ export function InProgressCard({ entry }: { entry: UrlEntry }) {
         >
           {hostname}
         </a>
-        <span
-          className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium ${PILL_CLASSES[entry.status] ?? PILL_CLASSES.idle}`}
-        >
-          <span className="spinner-sm" />
-          {STATUS_LABELS[entry.status] ?? entry.status}
-        </span>
       </div>
       <div className="mt-4">
         {entry.status === "fetching" || entry.status === "analyzing" ? (
