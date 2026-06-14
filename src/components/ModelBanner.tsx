@@ -1,3 +1,4 @@
+import { m } from "framer-motion";
 import {
   AlertCircle,
   CheckCircle2,
@@ -46,8 +47,18 @@ export function ModelBanner({
 
   if (variant === "overlay" && status.state !== "ready") {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 px-6 py-8 backdrop-blur-xl">
-        <div className="w-full max-w-md rounded-[28px] border border-white/10 bg-slate-900/85 p-6 shadow-[0_24px_80px_rgba(2,6,23,0.55)]">
+      <m.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 px-6 py-8 backdrop-blur-xl"
+      >
+        <m.div
+          initial={{ opacity: 0, scale: 0.96, y: 8 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          transition={{ duration: 0.24 }}
+          className="w-full max-w-md rounded-[28px] border border-white/10 bg-slate-900/85 p-6 shadow-[0_24px_80px_rgba(2,6,23,0.55)]"
+        >
           <div className="flex items-center gap-4">
             <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-950/70 text-slate-100">
               {status.state === "loading" ? (
@@ -64,13 +75,16 @@ export function ModelBanner({
               </p>
             </div>
           </div>
-        </div>
-      </div>
+        </m.div>
+      </m.div>
     );
   }
 
   return (
-    <div
+    <m.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.2 }}
       className={`relative w-full overflow-hidden rounded-2xl border px-4 py-3.5 backdrop-blur-sm ${cfg.cardClass}`}
     >
       <div className="flex items-center gap-3">
@@ -92,6 +106,6 @@ export function ModelBanner({
           </span>
         </div>
       </div>
-    </div>
+    </m.div>
   );
 }

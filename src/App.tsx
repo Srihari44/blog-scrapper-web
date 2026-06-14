@@ -5,6 +5,7 @@ import {
   useCallback,
   type ChangeEvent,
 } from "react";
+import { m } from "framer-motion";
 import { Download, Orbit } from "lucide-react";
 import { UrlInputPanel } from "./components/UrlInputPanel";
 import { UrlCard } from "./components/UrlCard";
@@ -53,7 +54,9 @@ function App() {
 
   useEffect(() => {
     if (modelStatus.state === "idle") {
-      void handleLoadModel(modelFile);
+      setTimeout(() => {
+        void handleLoadModel(modelFile);
+      }, 0);
     }
   }, [handleLoadModel, modelFile, modelStatus.state]);
 
@@ -231,7 +234,12 @@ function App() {
       )}
 
       <div className="flex h-screen max-h-screen flex-col overflow-hidden px-6 pb-6 sm:px-8 lg:px-10">
-        <header className="flex shrink-0 items-start justify-between gap-4 py-6">
+        <m.header
+          initial={{ opacity: 0, y: -12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.25 }}
+          className="flex shrink-0 items-start justify-between gap-4 py-6"
+        >
           <div className="flex items-center gap-4">
             <div className="flex h-13 w-13 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-500 to-cyan-400 text-white shadow-[0_0_24px_rgba(139,92,246,0.25)]">
               <Orbit size={24} strokeWidth={1.8} />
@@ -259,7 +267,7 @@ function App() {
               </span>
             </div>
           </div>
-        </header>
+        </m.header>
 
         <input
           ref={fileInputRef}
@@ -270,7 +278,10 @@ function App() {
           id="model-file-input"
         />
 
-        <div
+        <m.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.25, delay: 0.05 }}
           className={`grid min-h-0 flex-1 gap-6 ${hasStarted ? "xl:grid-cols-[minmax(280px,1.2fr)_1.5fr_1.5fr]" : "grid-cols-1"}`}
         >
           <section className="flex min-h-0 flex-col overflow-hidden">
@@ -305,9 +316,6 @@ function App() {
                 <span className="text-sm font-semibold uppercase tracking-[0.24em] text-slate-200">
                   In Progress
                 </span>
-                {inProgressEntry && (
-                  <span className="text-sm text-slate-500">● Live</span>
-                )}
               </div>
               <div className="min-h-0 flex-1 overflow-y-auto pr-1">
                 {inProgressEntry ? (
@@ -365,7 +373,7 @@ function App() {
               </div>
             </section>
           )}
-        </div>
+        </m.div>
 
         <footer className="mt-4 shrink-0 border-t border-white/10 pt-4 text-center text-sm text-slate-500">
           <p>

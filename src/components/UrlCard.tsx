@@ -1,4 +1,5 @@
 import { useState, useEffect, type CSSProperties } from "react";
+import { m } from "framer-motion";
 import {
   ArrowUpRight,
   BookOpen,
@@ -70,7 +71,11 @@ function ReadTime({ minutes }: { minutes: number }) {
 
 function ResultCard({ result }: { result: BlogSummary }) {
   return (
-    <div>
+    <m.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.2 }}
+    >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <h3 className="text-lg font-semibold text-slate-100">{result.title}</h3>
         <div className="flex flex-wrap items-center gap-2">
@@ -80,13 +85,18 @@ function ResultCard({ result }: { result: BlogSummary }) {
       </div>
       <p className="mt-3 text-sm leading-7 text-slate-300">{result.summary}</p>
       <TagList tags={result.tags} />
-    </div>
+    </m.div>
   );
 }
 
 function StreamPreview({ text }: { text: string }) {
   return (
-    <div className="rounded-xl border border-white/10 bg-slate-950/35 p-4">
+    <m.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.2 }}
+      className="rounded-xl border border-white/10 bg-slate-950/35 p-4"
+    >
       <div className="flex items-center gap-2">
         <span className="h-2.5 w-2.5 rounded-full bg-cyan-400" />
         <span className="text-sm font-medium text-slate-200">Generating…</span>
@@ -94,7 +104,7 @@ function StreamPreview({ text }: { text: string }) {
       <pre className="stream-text mt-3 whitespace-pre-wrap break-words text-sm leading-7 text-slate-300">
         {text || " "}
       </pre>
-    </div>
+    </m.div>
   );
 }
 
@@ -140,26 +150,13 @@ export function UrlCard({ entry }: UrlCardProps) {
     }
   })();
 
-  const statusLabel: Record<string, string> = {
-    idle: "Queued",
-    fetching: "Fetching content…",
-    analyzing: "Processing…",
-    streaming: "Generating summary…",
-    done: "Complete",
-    error: "Failed",
-  };
-
-  const pillClasses = {
-    idle: "border-white/10 bg-white/[0.04] text-slate-300",
-    fetching: "border-sky-400/20 bg-sky-500/10 text-sky-200",
-    analyzing: "border-violet-400/20 bg-violet-500/10 text-violet-200",
-    streaming: "border-cyan-400/20 bg-cyan-500/10 text-cyan-200",
-    done: "border-emerald-400/20 bg-emerald-500/10 text-emerald-200",
-    error: "border-rose-400/20 bg-rose-500/10 text-rose-200",
-  };
-
   return (
-    <article
+    <m.article
+      layout
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.24, ease: "easeOut" }}
+      whileHover={{ y: -2, scale: 1.005 }}
       className={`rounded-2xl border bg-white/[0.035] p-4 shadow-[0_14px_40px_rgba(2,6,23,0.24)] backdrop-blur-sm ${entry.status === "error" ? "border-rose-400/20" : entry.status === "done" ? "border-emerald-400/20" : "border-white/10"}`}
       id={`card-${entry.id}`}
     >
@@ -179,43 +176,56 @@ export function UrlCard({ entry }: UrlCardProps) {
             {displayedTime}s
           </span>
         )}
-        <span
-          className={`ml-auto inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-[11px] font-medium uppercase tracking-[0.2em] ${pillClasses[entry.status] ?? pillClasses.idle}`}
-        >
-          {entry.status === "fetching" ||
-          entry.status === "streaming" ||
-          entry.status === "analyzing" ? (
-            <span className="spinner-sm" />
-          ) : null}
-          {statusLabel[entry.status]}
-        </span>
       </div>
 
       <div className="mt-4">
         {(entry.status === "fetching" || entry.status === "analyzing") && (
-          <div className="rounded-xl border border-white/10 bg-slate-950/40 p-4">
+          <m.div
+            key="loading"
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6 }}
+            className="rounded-xl border border-white/10 bg-slate-950/40 p-4"
+          >
             <div className="shimmer-line w-3/4" />
             <div className="shimmer-line w-full" />
             <div className="shimmer-line w-5/6" />
             <div className="shimmer-line mt-2 w-1/2" />
-          </div>
+          </m.div>
         )}
 
         {entry.status === "streaming" && entry.streamText !== undefined && (
-          <StreamPreview text={entry.streamText} />
+          <m.div
+            key="streaming"
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            <StreamPreview text={entry.streamText} />
+          </m.div>
         )}
 
         {entry.status === "done" && entry.result && (
-          <ResultCard result={entry.result} />
+          <m.div
+            key="result"
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            <ResultCard result={entry.result} />
+          </m.div>
         )}
 
         {entry.status === "error" && (
-          <div className="flex items-start gap-2 rounded-xl border border-rose-400/20 bg-rose-500/10 p-3 text-sm text-rose-200">
+          <m.div
+            key="error"
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex items-start gap-2 rounded-xl border border-rose-400/20 bg-rose-500/10 p-3 text-sm text-rose-200"
+          >
             <CircleAlert size={20} strokeWidth={2} />
             <span>{entry.error ?? "Unknown error occurred"}</span>
-          </div>
+          </m.div>
         )}
       </div>
-    </article>
+    </m.article>
   );
 }

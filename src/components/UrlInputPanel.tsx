@@ -1,6 +1,7 @@
-import React from "react";
+import { m } from "framer-motion";
 import { Link2, Sparkles, X } from "lucide-react";
 import type { UrlEntry } from "../types";
+import { useState } from "react";
 
 interface UrlInputPanelProps {
   urls: UrlEntry[];
@@ -21,8 +22,8 @@ export function UrlInputPanel({
   isRunning,
   modelReady,
 }: UrlInputPanelProps) {
-  const [input, setInput] = React.useState("");
-  const [error, setError] = React.useState("");
+  const [input, setInput] = useState("");
+  const [error, setError] = useState("");
 
   const validateUrl = (u: string) => {
     try {
@@ -72,7 +73,12 @@ export function UrlInputPanel({
     "inline-flex items-center justify-center gap-2 rounded-xl border px-4 py-3 text-sm font-medium transition duration-200 disabled:cursor-not-allowed disabled:opacity-40";
 
   return (
-    <div className="rounded-[24px] border border-white/10 bg-white/[0.035] p-4 shadow-[0_14px_40px_rgba(2,6,23,0.24)] backdrop-blur-sm">
+    <m.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.24, ease: "easeOut" }}
+      className="rounded-[24px] border border-white/10 bg-white/[0.035] p-4 shadow-[0_14px_40px_rgba(2,6,23,0.24)] backdrop-blur-sm"
+    >
       <div className="flex flex-col gap-3 sm:flex-row">
         <div className="relative flex-1">
           <span
@@ -97,17 +103,25 @@ export function UrlInputPanel({
             className="w-full rounded-xl border border-white/10 bg-slate-950/50 py-3 pl-11 pr-4 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-violet-400 focus:ring-2 focus:ring-violet-500/20 disabled:cursor-not-allowed disabled:opacity-60"
           />
           {error && (
-            <span className="mt-2 block text-sm text-rose-300">{error}</span>
+            <m.span
+              initial={{ opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mt-2 block text-sm text-rose-300"
+            >
+              {error}
+            </m.span>
           )}
         </div>
-        <button
+        <m.button
           id="add-url-btn"
+          whileHover={{ scale: 1.01 }}
+          whileTap={{ scale: 0.98 }}
           className={`${buttonBase} border-violet-400/20 bg-violet-500/10 text-violet-100 hover:bg-violet-500/20 disabled:hover:bg-violet-500/10`}
           onClick={handleAdd}
           disabled={isRunning || !input.trim()}
         >
           Add URL
-        </button>
+        </m.button>
       </div>
 
       {urls.length > 0 && (
@@ -124,8 +138,13 @@ export function UrlInputPanel({
             };
 
             return (
-              <li
+              <m.li
                 key={entry.id}
+                layout
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, x: -8 }}
+                transition={{ duration: 0.18 }}
                 className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-sm ${statusClasses[entry.status] ?? statusClasses.idle}`}
               >
                 <span className="h-2.5 w-2.5 rounded-full bg-current opacity-80" />
@@ -136,15 +155,17 @@ export function UrlInputPanel({
                   {entry.status}
                 </span>
                 {!isRunning && (
-                  <button
+                  <m.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
                     className="rounded-md p-1 text-slate-400 transition hover:bg-white/10 hover:text-slate-200"
                     onClick={() => onRemove(entry.id)}
                     aria-label="Remove URL"
                   >
                     <X size={14} strokeWidth={2} />
-                  </button>
+                  </m.button>
                 )}
-              </li>
+              </m.li>
             );
           })}
         </ul>
@@ -152,17 +173,21 @@ export function UrlInputPanel({
 
       <div className="mt-4 flex flex-wrap gap-3">
         {urls.length > 0 && (
-          <button
+          <m.button
             id="clear-btn"
+            whileHover={{ scale: 1.01 }}
+            whileTap={{ scale: 0.98 }}
             className={`${buttonBase} border-white/10 bg-white/[0.04] text-slate-200 hover:bg-white/10`}
             onClick={onClear}
             disabled={isRunning}
           >
             Clear All
-          </button>
+          </m.button>
         )}
-        <button
+        <m.button
           id="analyze-btn"
+          whileHover={{ scale: 1.01 }}
+          whileTap={{ scale: 0.98 }}
           className={`${buttonBase} flex-1 border-emerald-400/20 bg-emerald-500/15 text-emerald-50 hover:bg-emerald-500/25 disabled:hover:bg-emerald-500/15 sm:flex-none`}
           onClick={onAnalyze}
           disabled={isRunning || urls.length === 0 || !modelReady}
@@ -181,8 +206,8 @@ export function UrlInputPanel({
                 : ""}
             </>
           )}
-        </button>
+        </m.button>
       </div>
-    </div>
+    </m.div>
   );
 }
