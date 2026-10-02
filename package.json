@@ -11,7 +11,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@litert-lm/core": "^0.13.1",
+    "@litert-lm/core": "^0.17.1",
     "framer-motion": "^12.40.0",
     "lucide-react": "^1.18.0",
     "react": "^19.2.6",

@@ -11,10 +11,10 @@ import {
   Tag,
   type LucideIcon,
 } from "lucide-react";
-import type { UrlEntry, BlogSummary, SentimentType } from "../types";
+import type { UrlEntry, BlogSummary, TContentType } from "../types";
 
-const SENTIMENT_CONFIG: Record<
-  SentimentType,
+const CONTENT_TYPE_CONFIG: Record<
+  TContentType,
   { label: string; color: string; icon: LucideIcon }
 > = {
   tutorial: { label: "Tutorial", color: "#22d3ee", icon: BookOpen },
@@ -24,9 +24,9 @@ const SENTIMENT_CONFIG: Record<
   "case-study": { label: "Case Study", color: "#4ade80", icon: Microscope },
 };
 
-function SentimentBadge({ sentiment }: { sentiment: SentimentType }) {
-  const cfg = SENTIMENT_CONFIG[sentiment] ?? {
-    label: sentiment,
+function ContentTypeBadge({ content_type }: { content_type: TContentType }) {
+  const cfg = CONTENT_TYPE_CONFIG[content_type] ?? {
+    label: content_type,
     color: "#94a3b8",
     icon: Tag,
   };
@@ -79,31 +79,12 @@ function ResultCard({ result }: { result: BlogSummary }) {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <h3 className="text-lg font-semibold text-slate-100">{result.title}</h3>
         <div className="flex flex-wrap items-center gap-2">
-          <SentimentBadge sentiment={result.sentiment} />
+          <ContentTypeBadge content_type={result.content_type} />
           <ReadTime minutes={result.read_time_minutes} />
         </div>
       </div>
       <p className="mt-3 text-sm leading-7 text-slate-300">{result.summary}</p>
       <TagList tags={result.tags} />
-    </m.div>
-  );
-}
-
-function StreamPreview({ text }: { text: string }) {
-  return (
-    <m.div
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.2 }}
-      className="rounded-xl border border-white/10 bg-slate-950/35 p-4"
-    >
-      <div className="flex items-center gap-2">
-        <span className="h-2.5 w-2.5 rounded-full bg-cyan-400" />
-        <span className="text-sm font-medium text-slate-200">Generating…</span>
-      </div>
-      <pre className="stream-text mt-3 whitespace-pre-wrap break-words text-sm leading-7 text-slate-300">
-        {text || " "}
-      </pre>
     </m.div>
   );
 }
@@ -116,9 +97,7 @@ export function UrlCard({ entry }: UrlCardProps) {
   const [liveElapsed, setLiveElapsed] = useState<number | undefined>(undefined);
 
   useEffect(() => {
-    const isActive = ["fetching", "analyzing", "streaming"].includes(
-      entry.status,
-    );
+    const isActive = ["fetching", "analyzing"].includes(entry.status);
     if (isActive && entry.startTime) {
       const timer = setTimeout(() => {
         setLiveElapsed(
@@ -191,16 +170,6 @@ export function UrlCard({ entry }: UrlCardProps) {
             <div className="shimmer-line w-full" />
             <div className="shimmer-line w-5/6" />
             <div className="shimmer-line mt-2 w-1/2" />
-          </m.div>
-        )}
-
-        {entry.status === "streaming" && entry.streamText !== undefined && (
-          <m.div
-            key="streaming"
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-          >
-            <StreamPreview text={entry.streamText} />
           </m.div>
         )}
 

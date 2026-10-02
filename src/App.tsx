@@ -4,24 +4,23 @@ import {
   useRef,
   useCallback,
   type ChangeEvent,
+  type FormEvent,
 } from "react";
 import { m } from "framer-motion";
 import { Download, Orbit } from "lucide-react";
 import { UrlInputPanel } from "./components/UrlInputPanel";
 import { UrlCard } from "./components/UrlCard";
 import { ModelBanner } from "./components/ModelBanner";
-import { InProgressCard } from "./components/InProgressCard";
 import { loadEngine, resetEngine, summarizeBlog, isEngineReady } from "./llm";
 import type { UrlEntry, ModelStatus } from "./types";
 import {
   buildExportPayload,
   fetchContent,
-  parseSummaryResult,
+  isBlogAnalysis,
+  normalizeBlogSummary,
   resetEntryState,
 } from "./appHelpers";
 import "./App.css";
-
-const DEFAULT_MODEL = "/model.litertlm";
 
 let idCounter = 0;
 const genId = () => `url-${++idCounter}`;
@@ -32,18 +31,32 @@ function App() {
   const [modelStatus, setModelStatus] = useState<ModelStatus>({
     state: "idle",
   });
-  const [modelFile, setModelFile] = useState(DEFAULT_MODEL);
+  const [modelFile, setModelFile] = useState("");
+  const [modelPathInput, setModelPathInput] = useState("");
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const resultsScrollRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef(false);
 
   const handleLoadModel = useCallback(async (path: string) => {
-    setModelStatus({ state: "loading", progress: 0, message: "Starting…" });
+    setModelStatus({
+      state: "loading",
+      progress: 0,
+      message: "Starting…",
+    });
+
     try {
       await loadEngine(path, (progress, message) => {
-        setModelStatus({ state: "loading", progress, message });
+        setModelStatus({
+          state: "loading",
+          progress,
+          message,
+        });
       });
-      setModelStatus({ state: "ready" });
+
+      setModelStatus({
+        state: "ready",
+      });
     } catch (err) {
       setModelStatus({
         state: "error",
@@ -52,33 +65,50 @@ function App() {
     }
   }, []);
 
-  useEffect(() => {
-    if (modelStatus.state === "idle") {
-      setTimeout(() => {
-        void handleLoadModel(modelFile);
-      }, 0);
-    }
-  }, [handleLoadModel, modelFile, modelStatus.state]);
-
   const handleChangeModel = () => {
     fileInputRef.current?.click();
   };
 
+  const handleSubmitModelPath = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    const path = modelPathInput.trim();
+
+    if (!path || modelStatus.state === "loading") {
+      return;
+    }
+
+    setModelFile(path);
+    void handleLoadModel(path);
+  };
+
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+
     if (!file) {
       return;
     }
 
     resetEngine();
+
     const objectUrl = URL.createObjectURL(file);
+
     setModelFile(file.name);
+
     void handleLoadModel(objectUrl);
+
     e.target.value = "";
   };
 
   const addUrl = useCallback((url: string) => {
-    setUrls((prev) => [...prev, { id: genId(), url, status: "idle" }]);
+    setUrls((prev) => [
+      ...prev,
+      {
+        id: genId(),
+        url,
+        status: "idle",
+      },
+    ]);
   }, []);
 
   const removeUrl = useCallback((id: string) => {
@@ -91,7 +121,14 @@ function App() {
 
   const updateEntry = useCallback((id: string, patch: Partial<UrlEntry>) => {
     setUrls((prev) =>
-      prev.map((entry) => (entry.id === id ? { ...entry, ...patch } : entry)),
+      prev.map((entry) =>
+        entry.id === id
+          ? {
+              ...entry,
+              ...patch,
+            }
+          : entry,
+      ),
     );
   }, []);
 
@@ -103,29 +140,52 @@ function App() {
     abortRef.current = false;
     setIsRunning(true);
 
+    /*
+     * Reset all previous results before starting a new run.
+     */
     setUrls((prev) => prev.map(resetEntryState));
 
-    for (const entry of urls) {
+    /*
+     * Use a snapshot of the current URLs.
+     *
+     * This prevents the loop from being affected by state updates
+     * caused by updateEntry().
+     */
+    const entriesToProcess = [...urls];
+
+    for (const entry of entriesToProcess) {
       if (abortRef.current) {
         break;
       }
 
       const startTime = performance.now();
       const startTimestamp = Date.now();
+
       const getElapsed = () =>
         parseFloat(((performance.now() - startTime) / 1000).toFixed(1));
 
-      updateEntry(entry.id, { status: "fetching", startTime: startTimestamp });
+      /*
+       * ---------------------------------------------------------
+       * STEP 1: Fetch article
+       * ---------------------------------------------------------
+       */
+      updateEntry(entry.id, {
+        status: "fetching",
+        startTime: startTimestamp,
+        error: undefined,
+      });
 
-      let content: string;
+      let fetchedContent;
+
       try {
-        content = await fetchContent(entry.url);
+        fetchedContent = await fetchContent(entry.url);
       } catch (err) {
         updateEntry(entry.id, {
           status: "error",
           error: err instanceof Error ? err.message : "Failed to fetch content",
           elapsedSeconds: getElapsed(),
         });
+
         continue;
       }
 
@@ -133,39 +193,51 @@ function App() {
         break;
       }
 
-      updateEntry(entry.id, { status: "streaming", streamText: "" });
+      /*
+       * ---------------------------------------------------------
+       * STEP 2: Analyze article with the local LLM
+       * ---------------------------------------------------------
+       *
+       * The LLM is responsible for:
+       *
+       * - a fallback title
+       * - summary
+       * - tags
+       * - content_type
+       *
+       * The source title takes precedence and reading time is calculated
+       * outside the LLM.
+       */
+      updateEntry(entry.id, {
+        status: "analyzing",
+      });
 
       try {
-        const generator = summarizeBlog(content);
-        let accumulated = "";
+        const analysis = await summarizeBlog(fetchedContent.content);
 
-        while (true) {
-          const { value, done } = await generator.next();
-
-          if (done) {
-            const parsedResult = parseSummaryResult(value, accumulated);
-            if (parsedResult) {
-              updateEntry(entry.id, {
-                status: "done",
-                result: parsedResult,
-                streamText: undefined,
-                elapsedSeconds: getElapsed(),
-              });
-            } else {
-              updateEntry(entry.id, {
-                status: "error",
-                error: "Failed to parse model response as JSON",
-                elapsedSeconds: getElapsed(),
-              });
-            }
-            break;
-          }
-
-          if (typeof value === "string") {
-            accumulated += value;
-            updateEntry(entry.id, { streamText: accumulated });
-          }
+        if (abortRef.current) {
+          break;
         }
+
+        if (!isBlogAnalysis(analysis)) {
+          throw new Error("Model returned an invalid structured summary");
+        }
+
+        /*
+         * Title and reading time are normalized deterministically, and the
+         * tool arguments are checked before they are used.
+         */
+        const finalResult = normalizeBlogSummary(
+          analysis,
+          fetchedContent.content,
+          fetchedContent.title,
+        );
+
+        updateEntry(entry.id, {
+          status: "done",
+          result: finalResult,
+          elapsedSeconds: getElapsed(),
+        });
       } catch (err) {
         updateEntry(entry.id, {
           status: "error",
@@ -180,6 +252,7 @@ function App() {
 
   const handleExportJson = useCallback(() => {
     const exportResults = buildExportPayload(urls);
+
     if (exportResults.length === 0) {
       return;
     }
@@ -187,26 +260,31 @@ function App() {
     const blob = new Blob([JSON.stringify(exportResults, null, 2)], {
       type: "application/json",
     });
+
     const url = URL.createObjectURL(blob);
+
     const link = document.createElement("a");
+
     link.href = url;
-    link.download = `blog-summaries-${new Date().toISOString().split("T")[0]}.json`;
+
+    link.download = `blog-summaries-${
+      new Date().toISOString().split("T")[0]
+    }.json`;
+
     document.body.appendChild(link);
+
     link.click();
+
     document.body.removeChild(link);
+
     URL.revokeObjectURL(url);
   }, [urls]);
 
   const doneCount = urls.filter((entry) => entry.status === "done").length;
-  const errorCount = urls.filter((entry) => entry.status === "error").length;
-  const pendingCount = urls.length - doneCount - errorCount;
 
-  const inProgressEntry = urls.find(
-    (entry) =>
-      entry.status === "fetching" ||
-      entry.status === "analyzing" ||
-      entry.status === "streaming",
-  );
+  const errorCount = urls.filter((entry) => entry.status === "error").length;
+
+  const pendingCount = urls.length - doneCount - errorCount;
 
   const completedEntries = urls.filter(
     (entry) => entry.status === "done" || entry.status === "error",
@@ -220,6 +298,7 @@ function App() {
   }, [completedEntries.length, isRunning]);
 
   const hasStarted = urls.some((entry) => entry.status !== "idle");
+
   const showModelOverlay = modelStatus.state !== "ready";
 
   return (
@@ -229,25 +308,38 @@ function App() {
           variant="overlay"
           status={modelStatus}
           modelFile={modelFile}
+          modelPath={modelPathInput}
+          onModelPathChange={setModelPathInput}
+          onLoadModel={handleSubmitModelPath}
           onChangeModel={handleChangeModel}
         />
       )}
 
       <div className="flex h-screen max-h-screen flex-col overflow-hidden px-6 pb-6 sm:px-8 lg:px-10">
         <m.header
-          initial={{ opacity: 0, y: -12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.25 }}
+          initial={{
+            opacity: 0,
+            y: -12,
+          }}
+          animate={{
+            opacity: 1,
+            y: 0,
+          }}
+          transition={{
+            duration: 0.25,
+          }}
           className="flex shrink-0 items-start justify-between gap-4 py-6"
         >
           <div className="flex items-center gap-4">
             <div className="flex h-13 w-13 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-500 to-cyan-400 text-white shadow-[0_0_24px_rgba(139,92,246,0.25)]">
               <Orbit size={24} strokeWidth={1.8} />
             </div>
+
             <div>
               <h1 className="bg-linear-to-r from-white via-violet-200 to-violet-400 bg-clip-text text-[28px] font-semibold tracking-[-0.02em] text-transparent">
                 BlogLens
               </h1>
+
               <p className="mt-1 text-sm text-slate-500">
                 On-device AI blog summarizer
               </p>
@@ -259,9 +351,11 @@ function App() {
               <span className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1.5 text-sm font-medium text-emerald-200">
                 ✓ {doneCount} success
               </span>
+
               <span className="rounded-full border border-amber-400/20 bg-amber-500/10 px-3 py-1.5 text-sm font-medium text-amber-200">
                 ● {pendingCount} pending
               </span>
+
               <span className="rounded-full border border-rose-400/20 bg-rose-500/10 px-3 py-1.5 text-sm font-medium text-rose-200">
                 ✕ {errorCount} error
               </span>
@@ -279,21 +373,37 @@ function App() {
         />
 
         <m.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.25, delay: 0.05 }}
-          className={`grid min-h-0 flex-1 gap-6 ${hasStarted ? "xl:grid-cols-[minmax(280px,1.2fr)_1.5fr_1.5fr]" : "grid-cols-1"}`}
+          initial={{
+            opacity: 0,
+            y: 12,
+          }}
+          animate={{
+            opacity: 1,
+            y: 0,
+          }}
+          transition={{
+            duration: 0.25,
+            delay: 0.05,
+          }}
+          className={`grid min-h-0 flex-1 gap-6 ${
+            hasStarted
+              ? "xl:grid-cols-[minmax(280px,1.2fr)_1.5fr]"
+              : "grid-cols-1"
+          }`}
         >
           <section className="flex min-h-0 flex-col overflow-hidden">
             <div className="mb-3.5 flex shrink-0 items-center gap-2">
               <span className="rounded border border-violet-400/20 bg-violet-500/10 px-2 py-0.5 font-mono text-[11px] text-violet-300">
                 01
               </span>
+
               <span className="text-sm font-semibold uppercase tracking-[0.24em] text-slate-200">
                 Add URLs
               </span>
+
               <span className="text-sm text-slate-500">Paste one or many</span>
             </div>
+
             <div className="min-h-0 flex-1 overflow-y-auto pr-1">
               <UrlInputPanel
                 urls={urls}
@@ -309,41 +419,15 @@ function App() {
 
           {hasStarted && (
             <section className="flex min-h-0 flex-col overflow-hidden">
-              <div className="mb-3.5 flex shrink-0 items-center gap-2">
+              <div className="mb-3.5 flex shrink-0 flex-wrap items-center gap-2">
                 <span className="rounded border border-violet-400/20 bg-violet-500/10 px-2 py-0.5 font-mono text-[11px] text-violet-300">
                   02
                 </span>
-                <span className="text-sm font-semibold uppercase tracking-[0.24em] text-slate-200">
-                  In Progress
-                </span>
-              </div>
-              <div className="min-h-0 flex-1 overflow-y-auto pr-1">
-                {inProgressEntry ? (
-                  <InProgressCard entry={inProgressEntry} />
-                ) : (
-                  <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-6 text-center text-sm text-slate-500 backdrop-blur-sm">
-                    {isRunning ? (
-                      <div className="flex items-center justify-center gap-2">
-                        <span className="spinner" /> Processing…
-                      </div>
-                    ) : (
-                      <span>No active job</span>
-                    )}
-                  </div>
-                )}
-              </div>
-            </section>
-          )}
 
-          {hasStarted && (
-            <section className="flex min-h-0 flex-col overflow-hidden">
-              <div className="mb-3.5 flex shrink-0 flex-wrap items-center gap-2">
-                <span className="rounded border border-violet-400/20 bg-violet-500/10 px-2 py-0.5 font-mono text-[11px] text-violet-300">
-                  03
-                </span>
                 <span className="text-sm font-semibold uppercase tracking-[0.24em] text-slate-200">
                   Completed
                 </span>
+
                 {doneCount > 0 && (
                   <button
                     id="export-json-btn"
@@ -356,6 +440,7 @@ function App() {
                   </button>
                 )}
               </div>
+
               <div
                 ref={resultsScrollRef}
                 className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1"

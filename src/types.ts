@@ -1,14 +1,35 @@
-export type SentimentType = "tutorial" | "opinion" | "news" | "reference" | "case-study";
+export type TContentType =
+  | "tutorial"
+  | "opinion"
+  | "news"
+  | "reference"
+  | "case-study";
 
 export interface BlogSummary {
   title: string;
   summary: string;
   read_time_minutes: number;
   tags: string[];
-  sentiment: SentimentType;
+  content_type: TContentType;
 }
 
-export type UrlStatus = "idle" | "fetching" | "analyzing" | "streaming" | "done" | "error";
+export type BlogAnalysis = Pick<
+  BlogSummary,
+  "title" | "summary" | "tags" | "content_type"
+>;
+
+export interface FetchedContent {
+  content: string;
+  title?: string;
+  finalUrl?: string;
+}
+
+export type UrlStatus =
+  | "idle"
+  | "fetching"
+  | "analyzing"
+  | "done"
+  | "error";
 
 export interface UrlEntry {
   id: string;
@@ -16,7 +37,6 @@ export interface UrlEntry {
   status: UrlStatus;
   result?: BlogSummary;
   error?: string;
-  streamText?: string;
   elapsedSeconds?: number;
   startTime?: number;
 }

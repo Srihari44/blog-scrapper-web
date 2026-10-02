@@ -132,7 +132,6 @@ export function UrlInputPanel({
               fetching: "border-sky-400/20 bg-sky-500/10 text-sky-100",
               analyzing:
                 "border-violet-400/20 bg-violet-500/10 text-violet-100",
-              streaming: "border-cyan-400/20 bg-cyan-500/10 text-cyan-100",
               done: "border-emerald-400/20 bg-emerald-500/10 text-emerald-100",
               error: "border-rose-400/20 bg-rose-500/10 text-rose-100",
             };

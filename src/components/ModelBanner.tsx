@@ -2,14 +2,19 @@ import { m } from "framer-motion";
 import {
   AlertCircle,
   CheckCircle2,
+  FileUp,
   LoaderCircle,
   PauseCircle,
 } from "lucide-react";
+import type { FormEvent } from "react";
 import type { ModelStatus } from "../types";
 
 interface ModelBannerProps {
   status: ModelStatus;
   modelFile: string;
+  modelPath: string;
+  onModelPathChange: (path: string) => void;
+  onLoadModel: (event: FormEvent<HTMLFormElement>) => void;
   onChangeModel: () => void;
   variant?: "inline" | "overlay";
 }
@@ -17,6 +22,10 @@ interface ModelBannerProps {
 export function ModelBanner({
   status,
   modelFile,
+  modelPath,
+  onModelPathChange,
+  onLoadModel,
+  onChangeModel,
   variant = "inline",
 }: ModelBannerProps) {
   const stateConfig = {
@@ -75,6 +84,47 @@ export function ModelBanner({
               </p>
             </div>
           </div>
+          {status.state !== "loading" && (
+            <form className="mt-6 space-y-3" onSubmit={onLoadModel}>
+              <label
+                htmlFor="model-path"
+                className="block text-sm font-medium text-slate-200"
+              >
+                Model URL or path
+              </label>
+              <input
+                id="model-path"
+                type="text"
+                value={modelPath}
+                onChange={(event) => onModelPathChange(event.target.value)}
+                placeholder="/model.litertlm or https://…"
+                autoComplete="url"
+                required
+                className="w-full rounded-xl border border-white/10 bg-slate-950/70 px-3 py-2.5 text-sm text-slate-100 outline-none transition placeholder:text-slate-600 focus:border-violet-400/50 focus:ring-2 focus:ring-violet-400/20"
+              />
+              <p className="text-xs leading-5 text-slate-500">
+                Enter a hosted model URL or a path served by this app, or choose
+                a local .litertlm file.
+              </p>
+              <div className="flex gap-2">
+                <button
+                  type="submit"
+                  disabled={!modelPath.trim()}
+                  className="flex-1 rounded-xl bg-violet-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-violet-400 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Load model
+                </button>
+                <button
+                  type="button"
+                  onClick={onChangeModel}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-medium text-slate-200 transition hover:bg-white/10"
+                >
+                  <FileUp size={16} />
+                  Browse
+                </button>
+              </div>
+            </form>
+          )}
         </m.div>
       </m.div>
     );
