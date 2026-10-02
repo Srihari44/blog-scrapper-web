@@ -41,24 +41,6 @@ function extractTitle(content: string): string | undefined {
   return undefined;
 }
 
-/**
- * Extract the publication date from Jina Reader metadata.
- *
- * Jina may return metadata such as:
- *
- * Published Time: 2026-09-28T10:30:00+05:30
- *
- * We only keep the YYYY-MM-DD portion because the application
- * does not need the exact publication time.
- */
-function extractPublishedDate(content: string): string | undefined {
-  const match = content.match(
-    /(?:^|\n)\s*Published Time:\s*(\d{4}-\d{2}-\d{2})(?:[T\s]|$)/i,
-  );
-
-  return match?.[1];
-}
-
 function looksLikeErrorPage(content: string): boolean {
   const normalized = content.toLowerCase().replace(/\s+/g, " ");
   return ERROR_INDICATORS.some((indicator) => normalized.includes(indicator));
@@ -69,7 +51,7 @@ export async function fetchContent(url: string): Promise<FetchedContent> {
 
   const res = await fetch(jinaUrl, {
     headers: {
-      Accept: "text/plain",
+      Accept: "application/json",
     },
   });
 
@@ -77,8 +59,10 @@ export async function fetchContent(url: string): Promise<FetchedContent> {
     throw new Error(`Jina fetch failed: ${res.status} ${res.statusText}`);
   }
 
-  const text = await res.text();
-  const content = text.trim();
+  const data = await res.json();
+
+  const content =
+    typeof data?.content === "string" ? data.content.trim() : "";
 
   if (content.length < 200) {
     throw new Error("Fetched content is too short or empty");
@@ -88,11 +72,25 @@ export async function fetchContent(url: string): Promise<FetchedContent> {
     throw new Error("The source appears to be an error, 404, or blocked page");
   }
 
+  let publishedDate: string | undefined;
+
+  if (typeof data?.publishedTime === "string") {
+    publishedDate = data.publishedTime.slice(0, 10);
+  } else if (typeof data?.timestamp === "string") {
+    publishedDate = data.timestamp.slice(0, 10);
+  }
+
   return {
     content,
-    title: extractTitle(content),
-    published_date: extractPublishedDate(content),
-    finalUrl: url,
+    title:
+      typeof data?.title === "string" && data.title.trim()
+        ? data.title.trim()
+        : extractTitle(content),
+    published_date: publishedDate,
+    finalUrl:
+      typeof data?.url === "string" && data.url.trim()
+        ? data.url
+        : url,
   };
 }
 
