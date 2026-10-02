@@ -30,20 +30,19 @@ function normalizeWhitespace(value: string): string {
   return value.replace(/\s+/g, " ").trim();
 }
 
-function extractTitle(content: string): string | undefined {
-  // Jina commonly returns a markdown H1 near the beginning.
-  const headingMatch = content.match(/^#\s+(.+)$/m);
-
-  if (headingMatch?.[1]) {
-    return normalizeWhitespace(headingMatch[1]);
-  }
-
-  return undefined;
-}
-
 function looksLikeErrorPage(content: string): boolean {
   const normalized = content.toLowerCase().replace(/\s+/g, " ");
   return ERROR_INDICATORS.some((indicator) => normalized.includes(indicator));
+}
+
+function parsePublishedDate(value: string): string | undefined {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return undefined;
+  }
+
+  return date.toISOString();
 }
 
 export async function fetchContent(url: string): Promise<FetchedContent> {
@@ -60,9 +59,12 @@ export async function fetchContent(url: string): Promise<FetchedContent> {
   }
 
   const data = await res.json();
+  const responseData = data?.data;
 
   const content =
-    typeof data?.content === "string" ? data.content.trim() : "";
+    typeof responseData?.content === "string"
+      ? responseData.content.trim()
+      : "";
 
   if (content.length < 200) {
     throw new Error("Fetched content is too short or empty");
@@ -72,25 +74,11 @@ export async function fetchContent(url: string): Promise<FetchedContent> {
     throw new Error("The source appears to be an error, 404, or blocked page");
   }
 
-  let publishedDate: string | undefined;
-
-  if (typeof data?.publishedTime === "string") {
-    publishedDate = data.publishedTime.slice(0, 10);
-  } else if (typeof data?.timestamp === "string") {
-    publishedDate = data.timestamp.slice(0, 10);
-  }
-
   return {
     content,
-    title:
-      typeof data?.title === "string" && data.title.trim()
-        ? data.title.trim()
-        : extractTitle(content),
-    published_date: publishedDate,
-    finalUrl:
-      typeof data?.url === "string" && data.url.trim()
-        ? data.url
-        : url,
+    title: responseData?.title,
+    published_date: parsePublishedDate(responseData?.publishedTime),
+    finalUrl: responseData?.url,
   };
 }
 

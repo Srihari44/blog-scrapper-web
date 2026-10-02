@@ -87,7 +87,7 @@ export async function loadEngine(
        * so keep the runtime context at 4096 and constrain the article
        * input separately in prepareContentForModel().
        */
-      maxNumTokens: 4096,
+      maxNumTokens: 8192,
     },
 
     onProgress: (p: number) => {
