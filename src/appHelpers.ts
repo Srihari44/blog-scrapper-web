@@ -41,9 +41,26 @@ function extractTitle(content: string): string | undefined {
   return undefined;
 }
 
+/**
+ * Extract the publication date from Jina Reader metadata.
+ *
+ * Jina may return metadata such as:
+ *
+ * Published Time: 2026-09-28T10:30:00+05:30
+ *
+ * We only keep the YYYY-MM-DD portion because the application
+ * does not need the exact publication time.
+ */
+function extractPublishedDate(content: string): string | undefined {
+  const match = content.match(
+    /(?:^|\n)\s*Published Time:\s*(\d{4}-\d{2}-\d{2})(?:[T\s]|$)/i,
+  );
+
+  return match?.[1];
+}
+
 function looksLikeErrorPage(content: string): boolean {
   const normalized = content.toLowerCase().replace(/\s+/g, " ");
-
   return ERROR_INDICATORS.some((indicator) => normalized.includes(indicator));
 }
 
@@ -74,6 +91,7 @@ export async function fetchContent(url: string): Promise<FetchedContent> {
   return {
     content,
     title: extractTitle(content),
+    published_date: extractPublishedDate(content),
     finalUrl: url,
   };
 }
@@ -145,6 +163,7 @@ export function normalizeBlogSummary(
   value: BlogAnalysis,
   content: string,
   sourceTitle?: string,
+  publishedDate?: string,
 ): BlogSummary {
   return {
     title: sourceTitle?.trim() || value.title.trim(),
@@ -152,6 +171,7 @@ export function normalizeBlogSummary(
     read_time_minutes: calculateReadTime(content),
     tags: normalizeTags(value.tags),
     content_type: value.content_type,
+    published_date: publishedDate,
   };
 }
 
@@ -165,6 +185,7 @@ export function buildExportPayload(entries: UrlEntry[]) {
       read_time_minutes: entry.result?.read_time_minutes,
       tags: entry.result?.tags,
       content_type: entry.result?.content_type,
+      published_date: entry.result?.published_date,
       elapsed_seconds: entry.elapsedSeconds,
     }));
 }

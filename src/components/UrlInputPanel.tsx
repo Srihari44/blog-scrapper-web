@@ -1,5 +1,4 @@
-import { m } from "framer-motion";
-import { Link2, Sparkles, X } from "lucide-react";
+import { X } from "lucide-react";
 import type { UrlEntry } from "../types";
 import { useState } from "react";
 
@@ -69,27 +68,14 @@ export function UrlInputPanel({
     }
   };
 
-  const buttonBase =
-    "inline-flex items-center justify-center gap-2 rounded-xl border px-4 py-3 text-sm font-medium transition duration-200 disabled:cursor-not-allowed disabled:opacity-40";
-
   return (
-    <m.div
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.24, ease: "easeOut" }}
-      className="rounded-[24px] border border-white/10 bg-white/[0.035] p-4 shadow-[0_14px_40px_rgba(2,6,23,0.24)] backdrop-blur-sm"
-    >
+    <div className="space-y-4">
       <div className="flex flex-col gap-3 sm:flex-row">
-        <div className="relative flex-1">
-          <span
-            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-500"
-            aria-hidden="true"
-          >
-            <Link2 size={16} strokeWidth={2} />
-          </span>
+        <div className="flex-1">
           <input
             id="url-input"
             type="url"
+            aria-label="Blog URL"
             placeholder="Paste blog URL here…"
             value={input}
             onChange={(e) => {
@@ -100,113 +86,99 @@ export function UrlInputPanel({
             onPaste={handlePaste}
             disabled={isRunning}
             autoComplete="off"
-            className="w-full rounded-xl border border-white/10 bg-slate-950/50 py-3 pl-11 pr-4 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-violet-400 focus:ring-2 focus:ring-violet-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+            className="w-full rounded-lg border border-white/15 bg-slate-900 px-3 py-3 text-sm text-slate-100 outline-none placeholder:text-slate-400 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/20 disabled:cursor-not-allowed disabled:opacity-60"
           />
           {error && (
-            <m.span
-              initial={{ opacity: 0, y: 4 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="mt-2 block text-sm text-rose-300"
-            >
+            <span className="mt-2 block text-sm text-rose-300" role="alert">
               {error}
-            </m.span>
+            </span>
           )}
         </div>
-        <m.button
+        <button
+          type="button"
           id="add-url-btn"
-          whileHover={{ scale: 1.01 }}
-          whileTap={{ scale: 0.98 }}
-          className={`${buttonBase} border-violet-400/20 bg-violet-500/10 text-violet-100 hover:bg-violet-500/20 disabled:hover:bg-violet-500/10`}
+          className="inline-flex items-center justify-center rounded-lg bg-emerald-400 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-emerald-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 disabled:cursor-not-allowed disabled:opacity-40"
           onClick={handleAdd}
           disabled={isRunning || !input.trim()}
         >
           Add URL
-        </m.button>
+        </button>
       </div>
 
       {urls.length > 0 && (
-        <ul className="mt-4 space-y-2" id="url-list">
+        <ul className="divide-y divide-white/10" id="url-list">
           {urls.map((entry) => {
-            const statusClasses = {
-              idle: "border-white/10 bg-white/[0.03] text-slate-300",
-              fetching: "border-sky-400/20 bg-sky-500/10 text-sky-100",
-              analyzing:
-                "border-violet-400/20 bg-violet-500/10 text-violet-100",
-              done: "border-emerald-400/20 bg-emerald-500/10 text-emerald-100",
-              error: "border-rose-400/20 bg-rose-500/10 text-rose-100",
-            };
-
             return (
-              <m.li
+              <li
                 key={entry.id}
-                layout
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, x: -8 }}
-                transition={{ duration: 0.18 }}
-                className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-sm ${statusClasses[entry.status] ?? statusClasses.idle}`}
+                className="flex items-center gap-3 py-3 text-sm"
               >
-                <span className="h-2.5 w-2.5 rounded-full bg-current opacity-80" />
+                <span
+                  className={`h-2 w-2 shrink-0 rounded-full ${
+                    entry.status === "error"
+                      ? "bg-rose-400"
+                      : entry.status === "done"
+                        ? "bg-emerald-400"
+                        : entry.status === "fetching" ||
+                            entry.status === "analyzing"
+                          ? "bg-amber-300"
+                          : "bg-slate-500"
+                  }`}
+                  aria-hidden="true"
+                />
                 <span className="min-w-0 flex-1 truncate" title={entry.url}>
                   {entry.url}
                 </span>
-                <span className="rounded-full border border-white/10 bg-black/10 px-2 py-0.5 text-[11px] uppercase tracking-[0.2em]">
+                <span className="shrink-0 text-sm capitalize text-slate-400">
                   {entry.status}
                 </span>
-                {!isRunning && (
-                  <m.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    className="rounded-md p-1 text-slate-400 transition hover:bg-white/10 hover:text-slate-200"
-                    onClick={() => onRemove(entry.id)}
-                    aria-label="Remove URL"
-                  >
-                    <X size={14} strokeWidth={2} />
-                  </m.button>
-                )}
-              </m.li>
+                {!isRunning &&
+                  entry.status !== "done" &&
+                  entry.status !== "error" && (
+                    <button
+                      type="button"
+                      className="flex min-h-11 min-w-11 items-center justify-center rounded-md text-slate-400 transition hover:bg-white/5 hover:text-slate-100 focus-visible:outline-2 focus-visible:outline-emerald-400"
+                      onClick={() => onRemove(entry.id)}
+                      aria-label={`Remove ${entry.url}`}
+                    >
+                      <X size={14} strokeWidth={2} />
+                    </button>
+                  )}
+              </li>
             );
           })}
         </ul>
       )}
 
-      <div className="mt-4 flex flex-wrap gap-3">
+      <div className="flex flex-wrap items-center gap-4">
         {urls.length > 0 && (
-          <m.button
+          <button
+            type="button"
             id="clear-btn"
-            whileHover={{ scale: 1.01 }}
-            whileTap={{ scale: 0.98 }}
-            className={`${buttonBase} border-white/10 bg-white/[0.04] text-slate-200 hover:bg-white/10`}
+            className="min-h-11 px-2 text-sm text-slate-400 underline-offset-4 hover:text-slate-100 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 disabled:cursor-not-allowed disabled:opacity-40"
             onClick={onClear}
             disabled={isRunning}
           >
             Clear All
-          </m.button>
+          </button>
         )}
-        <m.button
+        <button
+          type="button"
           id="analyze-btn"
-          whileHover={{ scale: 1.01 }}
-          whileTap={{ scale: 0.98 }}
-          className={`${buttonBase} flex-1 border-emerald-400/20 bg-emerald-500/15 text-emerald-50 hover:bg-emerald-500/25 disabled:hover:bg-emerald-500/15 sm:flex-none`}
+          className="ml-auto inline-flex items-center justify-center gap-2 rounded-lg border border-emerald-300/40 px-4 py-2.5 text-sm font-medium text-emerald-200 transition hover:bg-emerald-400/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 disabled:cursor-not-allowed disabled:opacity-40"
           onClick={onAnalyze}
           disabled={isRunning || urls.length === 0 || !modelReady}
           title={!modelReady ? "Waiting for model to load…" : ""}
         >
           {isRunning ? (
             <>
-              <span className="spinner" /> Analyzing…
+              <span className="spinner" aria-hidden="true" /> Summarizing…
             </>
           ) : (
-            <>
-              <Sparkles size={16} strokeWidth={2} />
-              Summarize{" "}
-              {urls.length > 0
-                ? `${urls.length} URL${urls.length > 1 ? "s" : ""}`
-                : ""}
-            </>
+            `Summarize ${urls.length} URL${urls.length === 1 ? "" : "s"}`
           )}
-        </m.button>
+        </button>
       </div>
-    </m.div>
+    </div>
   );
 }

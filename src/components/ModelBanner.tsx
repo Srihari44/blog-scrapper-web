@@ -36,8 +36,8 @@ export function ModelBanner({
     },
     loading: {
       icon: LoaderCircle,
-      label: status.message ?? "Loading model…",
-      cardClass: "border-violet-400/30 bg-violet-500/10",
+      label: "Loading model",
+      cardClass: "border-emerald-400/30 bg-emerald-500/10",
     },
     ready: {
       icon: CheckCircle2,
@@ -46,7 +46,7 @@ export function ModelBanner({
     },
     error: {
       icon: AlertCircle,
-      label: status.message ?? "Model error",
+      label: "Could not load model",
       cardClass: "border-rose-400/25 bg-rose-500/8",
     },
   };
@@ -60,25 +60,31 @@ export function ModelBanner({
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 px-6 py-8 backdrop-blur-xl"
+        className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950 px-6 py-8"
       >
         <m.div
           initial={{ opacity: 0, scale: 0.96, y: 8 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           transition={{ duration: 0.24 }}
-          className="w-full max-w-md rounded-[28px] border border-white/10 bg-slate-900/85 p-6 shadow-[0_24px_80px_rgba(2,6,23,0.55)]"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="model-dialog-title"
+          className="w-full max-w-md rounded-xl border border-white/15 bg-slate-900 p-5"
         >
-          <div className="flex items-center gap-4">
-            <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-950/70 text-slate-100">
-              {status.state === "loading" ? (
-                <div className="spinner-large" aria-hidden="true" />
-              ) : (
-                <Icon size={24} strokeWidth={2} />
-              )}
-            </span>
+          <div className="flex items-center gap-3">
+            {status.state === "loading" ? (
+              <div className="spinner-large" aria-hidden="true" />
+            ) : (
+              <Icon size={18} strokeWidth={2} aria-hidden="true" />
+            )}
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold text-white">{cfg.label}</p>
-              <p className="mt-1 text-sm text-slate-400">
+              <p
+                id="model-dialog-title"
+                className="text-sm font-semibold text-white"
+              >
+                {cfg.label}
+              </p>
+              <p className="mt-1 text-sm text-slate-300">
                 {status.message ??
                   "A local model is required to summarize blogs."}
               </p>
@@ -96,11 +102,12 @@ export function ModelBanner({
                 id="model-path"
                 type="text"
                 value={modelPath}
+                autoFocus
                 onChange={(event) => onModelPathChange(event.target.value)}
                 placeholder="/model.litertlm or https://…"
                 autoComplete="url"
                 required
-                className="w-full rounded-xl border border-white/10 bg-slate-950/70 px-3 py-2.5 text-sm text-slate-100 outline-none transition placeholder:text-slate-600 focus:border-violet-400/50 focus:ring-2 focus:ring-violet-400/20"
+                className="w-full rounded-lg border border-white/15 bg-slate-950 px-3 py-2.5 text-sm text-slate-100 outline-none transition placeholder:text-slate-400 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/20"
               />
               <p className="text-xs leading-5 text-slate-500">
                 Enter a hosted model URL or a path served by this app, or choose
@@ -110,14 +117,14 @@ export function ModelBanner({
                 <button
                   type="submit"
                   disabled={!modelPath.trim()}
-                  className="flex-1 rounded-xl bg-violet-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-violet-400 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="min-h-11 flex-1 rounded-lg bg-emerald-400 px-4 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-emerald-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Load model
                 </button>
                 <button
                   type="button"
                   onClick={onChangeModel}
-                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-medium text-slate-200 transition hover:bg-white/10"
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-white/15 px-4 py-2.5 text-sm font-medium text-slate-200 transition hover:bg-white/5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400"
                 >
                   <FileUp size={16} />
                   Browse
@@ -135,11 +142,11 @@ export function ModelBanner({
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.2 }}
-      className={`relative w-full overflow-hidden rounded-2xl border px-4 py-3.5 backdrop-blur-sm ${cfg.cardClass}`}
+      className={`relative w-full rounded-lg border px-4 py-3 ${cfg.cardClass}`}
     >
       <div className="flex items-center gap-3">
         <span
-          className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-950/50 text-slate-100"
+          className="flex h-8 w-8 items-center justify-center text-slate-100"
           aria-hidden="true"
         >
           <Icon size={18} strokeWidth={2} />
@@ -149,10 +156,10 @@ export function ModelBanner({
             {cfg.label}
           </span>
           <span
-            className="block truncate font-mono text-[11px] text-slate-500"
+            className="block truncate font-mono text-xs text-slate-400"
             title={modelFile}
           >
-            {modelFile.split("/").pop() ?? modelFile}
+            {modelFile.split(/[\\/]/).pop() ?? modelFile}
           </span>
         </div>
       </div>

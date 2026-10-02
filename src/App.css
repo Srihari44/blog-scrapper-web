@@ -1,37 +1,4 @@
-.shimmer-line {
-  height: 14px;
-  border-radius: 6px;
-  background: linear-gradient(
-    90deg,
-    rgba(255, 255, 255, 0.04) 25%,
-    rgba(255, 255, 255, 0.08) 50%,
-    rgba(255, 255, 255, 0.04) 75%
-  );
-  background-size: 200% 100%;
-  animation: shimmer 1.5s infinite;
-}
-
-.w-3\/4 {
-  width: 75%;
-}
-.w-5\/6 {
-  width: 83%;
-}
-.w-1\/2 {
-  width: 50%;
-}
-
-@keyframes shimmer {
-  0% {
-    background-position: 200% 0;
-  }
-  100% {
-    background-position: -200% 0;
-  }
-}
-
 .spinner,
-.spinner-sm,
 .spinner-large {
   display: inline-block;
   border-radius: 50%;
@@ -44,21 +11,23 @@
   width: 14px;
   height: 14px;
 }
-.spinner-sm {
-  width: 10px;
-  height: 10px;
-  border-width: 1.5px;
-}
 .spinner-large {
   width: 24px;
   height: 24px;
   border-width: 3px;
-  border-top-color: #a78bfa;
+  border-top-color: #34d399;
   border-right-color: rgba(255, 255, 255, 0.2);
 }
 
 @keyframes spin {
   to {
     transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner,
+  .spinner-large {
+    animation: none;
   }
 }

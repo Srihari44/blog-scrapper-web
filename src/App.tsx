@@ -6,8 +6,7 @@ import {
   type ChangeEvent,
   type FormEvent,
 } from "react";
-import { m } from "framer-motion";
-import { Download, Orbit } from "lucide-react";
+import { Download } from "lucide-react";
 import { UrlInputPanel } from "./components/UrlInputPanel";
 import { UrlCard } from "./components/UrlCard";
 import { ModelBanner } from "./components/ModelBanner";
@@ -217,6 +216,103 @@ function App() {
     );
   }, []);
 
+  const processEntry = useCallback(
+    async (entry: UrlEntry) => {
+      const startTime = performance.now();
+      const startTimestamp = Date.now();
+
+      const getElapsed = () =>
+        parseFloat(((performance.now() - startTime) / 1000).toFixed(1));
+
+      updateEntry(entry.id, {
+        status: "fetching",
+        startTime: startTimestamp,
+        error: undefined,
+        result: undefined,
+        elapsedSeconds: undefined,
+      });
+
+      let fetchedContent;
+
+      try {
+        fetchedContent = await fetchContent(entry.url);
+      } catch (err) {
+        updateEntry(entry.id, {
+          status: "error",
+          error:
+            err instanceof Error ? err.message : "Failed to fetch content",
+          elapsedSeconds: getElapsed(),
+        });
+
+        return;
+      }
+
+      if (abortRef.current) {
+        return;
+      }
+
+      updateEntry(entry.id, {
+        status: "analyzing",
+      });
+
+      try {
+        const analysis = await summarizeBlog(fetchedContent.content);
+
+        if (abortRef.current) {
+          return;
+        }
+
+        if (!isBlogAnalysis(analysis)) {
+          throw new Error("Model returned an invalid structured summary");
+        }
+
+        const finalResult = normalizeBlogSummary(
+          analysis,
+          fetchedContent.content,
+          fetchedContent.title,
+          fetchedContent.published_date,
+        );
+
+        updateEntry(entry.id, {
+          status: "done",
+          result: finalResult,
+          elapsedSeconds: getElapsed(),
+        });
+      } catch (err) {
+        updateEntry(entry.id, {
+          status: "error",
+          error: err instanceof Error ? err.message : "LLM error",
+          elapsedSeconds: getElapsed(),
+        });
+      }
+    },
+    [updateEntry],
+  );
+
+  const handleRetry = useCallback(
+    async (id: string) => {
+      if (!isEngineReady() || isRunning) {
+        return;
+      }
+
+      const entry = urls.find((url) => url.id === id);
+
+      if (!entry || entry.status !== "error") {
+        return;
+      }
+
+      abortRef.current = false;
+      setIsRunning(true);
+
+      try {
+        await processEntry(entry);
+      } finally {
+        setIsRunning(false);
+      }
+    },
+    [isRunning, processEntry, urls],
+  );
+
   const handleAnalyze = useCallback(async () => {
     if (!isEngineReady() || isRunning) {
       return;
@@ -254,88 +350,7 @@ function App() {
           break;
         }
 
-        const startTime = performance.now();
-        const startTimestamp = Date.now();
-
-        const getElapsed = () =>
-          parseFloat(((performance.now() - startTime) / 1000).toFixed(1));
-
-        /*
-         * ---------------------------------------------------------
-         * STEP 1: Fetch article
-         * ---------------------------------------------------------
-         */
-        updateEntry(entry.id, {
-          status: "fetching",
-          startTime: startTimestamp,
-          error: undefined,
-        });
-
-        let fetchedContent;
-
-        try {
-          fetchedContent = await fetchContent(entry.url);
-        } catch (err) {
-          updateEntry(entry.id, {
-            status: "error",
-            error:
-              err instanceof Error ? err.message : "Failed to fetch content",
-            elapsedSeconds: getElapsed(),
-          });
-
-          continue;
-        }
-
-        if (abortRef.current) {
-          break;
-        }
-
-        /*
-         * ---------------------------------------------------------
-         * STEP 2: Analyze article with the local LLM
-         * ---------------------------------------------------------
-         *
-         * summarizeBlog() creates a conversation specifically
-         * for this article and deterministically deletes it
-         * after inference.
-         */
-        updateEntry(entry.id, {
-          status: "analyzing",
-        });
-
-        try {
-          const analysis = await summarizeBlog(fetchedContent.content);
-
-          if (abortRef.current) {
-            break;
-          }
-
-          if (!isBlogAnalysis(analysis)) {
-            throw new Error("Model returned an invalid structured summary");
-          }
-
-          /*
-           * Title and reading time are normalized deterministically,
-           * and the tool arguments are checked before they are used.
-           */
-          const finalResult = normalizeBlogSummary(
-            analysis,
-            fetchedContent.content,
-            fetchedContent.title,
-          );
-
-          updateEntry(entry.id, {
-            status: "done",
-            result: finalResult,
-            elapsedSeconds: getElapsed(),
-          });
-        } catch (err) {
-          updateEntry(entry.id, {
-            status: "error",
-            error: err instanceof Error ? err.message : "LLM error",
-            elapsedSeconds: getElapsed(),
-          });
-        }
+        await processEntry(entry);
       }
     } finally {
       /*
@@ -344,7 +359,7 @@ function App() {
        */
       setIsRunning(false);
     }
-  }, [urls, isRunning, updateEntry]);
+  }, [urls, isRunning, processEntry]);
 
   const handleExportJson = useCallback(() => {
     const exportResults = buildExportPayload(urls);
@@ -380,7 +395,11 @@ function App() {
 
   const errorCount = urls.filter((entry) => entry.status === "error").length;
 
-  const pendingCount = urls.length - doneCount - errorCount;
+  const activeCount = urls.filter(
+    (entry) => entry.status === "fetching" || entry.status === "analyzing",
+  ).length;
+
+  const pendingCount = urls.filter((entry) => entry.status === "idle").length;
 
   const completedEntries = urls.filter(
     (entry) => entry.status === "done" || entry.status === "error",
@@ -411,53 +430,33 @@ function App() {
         />
       )}
 
-      <div className="flex h-screen max-h-screen flex-col overflow-hidden px-6 pb-6 sm:px-8 lg:px-10">
-        <m.header
-          initial={{
-            opacity: 0,
-            y: -12,
-          }}
-          animate={{
-            opacity: 1,
-            y: 0,
-          }}
-          transition={{
-            duration: 0.25,
-          }}
-          className="flex shrink-0 items-start justify-between gap-4 py-6"
-        >
-          <div className="flex items-center gap-4">
-            <div className="flex h-13 w-13 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-500 to-cyan-400 text-white shadow-[0_0_24px_rgba(139,92,246,0.25)]">
-              <Orbit size={24} strokeWidth={1.8} />
-            </div>
-
-            <div>
-              <h1 className="bg-linear-to-r from-white via-violet-200 to-violet-400 bg-clip-text text-[28px] font-semibold tracking-[-0.02em] text-transparent">
-                BlogLens
-              </h1>
-
-              <p className="mt-1 text-sm text-slate-500">
-                On-device AI blog summarizer
-              </p>
-            </div>
+      <div
+        inert={showModelOverlay}
+        className="flex min-h-[100dvh] flex-col px-4 pb-4 sm:px-8 sm:pb-5 lg:px-10 xl:h-[100dvh] xl:max-h-[100dvh] xl:overflow-hidden"
+      >
+        <header className="flex shrink-0 flex-wrap items-center justify-between gap-4 py-5">
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight text-slate-100">
+              BlogLens
+            </h1>
+            <p className="mt-1 text-sm text-slate-400">
+              On-device blog summaries
+            </p>
           </div>
 
-          <div className="flex flex-col items-end gap-3">
-            <div className="flex flex-wrap items-center justify-end gap-2">
-              <span className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1.5 text-sm font-medium text-emerald-200">
-                ✓ {doneCount} success
-              </span>
-
-              <span className="rounded-full border border-amber-400/20 bg-amber-500/10 px-3 py-1.5 text-sm font-medium text-amber-200">
-                ● {pendingCount} pending
-              </span>
-
-              <span className="rounded-full border border-rose-400/20 bg-rose-500/10 px-3 py-1.5 text-sm font-medium text-rose-200">
-                ✕ {errorCount} error
-              </span>
-            </div>
-          </div>
-        </m.header>
+          {urls.length > 0 && (
+            <p
+              className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-slate-300"
+              aria-label={`${doneCount} done, ${activeCount} processing, ${pendingCount} pending, ${errorCount} failed`}
+              aria-live="polite"
+            >
+              <span>{doneCount} done</span>
+              {activeCount > 0 && <span>{activeCount} processing</span>}
+              <span>{pendingCount} pending</span>
+              <span>{errorCount} failed</span>
+            </p>
+          )}
+        </header>
 
         <input
           ref={fileInputRef}
@@ -469,39 +468,21 @@ function App() {
           disabled={isRunning}
         />
 
-        <m.div
-          initial={{
-            opacity: 0,
-            y: 12,
-          }}
-          animate={{
-            opacity: 1,
-            y: 0,
-          }}
-          transition={{
-            duration: 0.25,
-            delay: 0.05,
-          }}
+        <main
           className={`grid min-h-0 flex-1 gap-6 ${
             hasStarted
               ? "xl:grid-cols-[minmax(280px,1.2fr)_1.5fr]"
               : "grid-cols-1"
           }`}
         >
-          <section className="flex min-h-0 flex-col overflow-hidden">
-            <div className="mb-3.5 flex shrink-0 items-center gap-2">
-              <span className="rounded border border-violet-400/20 bg-violet-500/10 px-2 py-0.5 font-mono text-[11px] text-violet-300">
-                01
-              </span>
-
-              <span className="text-sm font-semibold uppercase tracking-[0.24em] text-slate-200">
+          <section className="flex flex-col xl:min-h-0 xl:overflow-hidden">
+            <div className="mb-3 flex shrink-0 items-center">
+              <h2 className="text-sm font-semibold text-slate-200">
                 Add URLs
-              </span>
-
-              <span className="text-sm text-slate-500">Paste one or many</span>
+              </h2>
             </div>
 
-            <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+            <div className="xl:min-h-0 xl:flex-1 xl:overflow-y-auto xl:pr-1">
               <UrlInputPanel
                 urls={urls}
                 onAdd={addUrl}
@@ -515,20 +496,16 @@ function App() {
           </section>
 
           {hasStarted && (
-            <section className="flex min-h-0 flex-col overflow-hidden">
-              <div className="mb-3.5 flex shrink-0 flex-wrap items-center gap-2">
-                <span className="rounded border border-violet-400/20 bg-violet-500/10 px-2 py-0.5 font-mono text-[11px] text-violet-300">
-                  02
-                </span>
-
-                <span className="text-sm font-semibold uppercase tracking-[0.24em] text-slate-200">
-                  Completed
-                </span>
+            <section className="flex flex-col xl:min-h-0 xl:overflow-hidden">
+              <div className="mb-3 flex shrink-0 flex-wrap items-center gap-2">
+                <h2 className="text-sm font-semibold text-slate-200">
+                  Results
+                </h2>
 
                 {doneCount > 0 && (
                   <button
                     id="export-json-btn"
-                    className="ml-auto inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/4 px-3 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+                    className="ml-auto inline-flex min-h-11 items-center gap-2 rounded-md px-3 text-sm text-slate-300 transition hover:bg-white/5 hover:text-white focus-visible:outline-2 focus-visible:outline-emerald-400"
                     onClick={handleExportJson}
                     title="Export completed summaries to JSON"
                   >
@@ -540,33 +517,32 @@ function App() {
 
               <div
                 ref={resultsScrollRef}
-                className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1"
+                className="space-y-4 xl:min-h-0 xl:flex-1 xl:overflow-y-auto xl:pr-1"
                 id="results-grid"
               >
                 {completedEntries.length === 0 ? (
-                  <div className="rounded-2xl border border-dashed border-white/10 bg-white/2 p-6 text-center text-sm text-slate-500">
+                  <p className="py-6 text-sm text-slate-400">
                     Results will appear here…
-                  </div>
+                  </p>
                 ) : (
                   completedEntries.map((entry) => (
-                    <UrlCard key={entry.id} entry={entry} />
+                    <UrlCard
+                      key={entry.id}
+                      entry={entry}
+                      onRetry={handleRetry}
+                      retryDisabled={
+                        isRunning || modelStatus.state !== "ready"
+                      }
+                    />
                   ))
                 )}
               </div>
             </section>
           )}
-        </m.div>
+        </main>
 
-        <footer className="mt-4 shrink-0 border-t border-white/10 pt-4 text-center text-sm text-slate-500">
-          <p>
-            Powered by{" "}
-            <strong className="font-semibold text-slate-300">LiteRT-LM</strong>{" "}
-            · Content via{" "}
-            <strong className="font-semibold text-slate-300">
-              Jina Reader
-            </strong>{" "}
-            · 100% on-device inference
-          </p>
+        <footer className="mt-4 shrink-0 border-t border-white/10 pt-3 text-center text-sm text-slate-400">
+          Summaries run locally · URLs fetched via Jina Reader
         </footer>
       </div>
     </div>

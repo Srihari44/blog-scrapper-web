@@ -11,6 +11,7 @@ export interface BlogSummary {
   read_time_minutes: number;
   tags: string[];
   content_type: TContentType;
+  published_date?: string;
 }
 
 export type BlogAnalysis = Pick<
@@ -21,15 +22,11 @@ export type BlogAnalysis = Pick<
 export interface FetchedContent {
   content: string;
   title?: string;
+  published_date?: string;
   finalUrl?: string;
 }
 
-export type UrlStatus =
-  | "idle"
-  | "fetching"
-  | "analyzing"
-  | "done"
-  | "error";
+export type UrlStatus = "idle" | "fetching" | "analyzing" | "done" | "error";
 
 export interface UrlEntry {
   id: string;
