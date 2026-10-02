@@ -14,25 +14,8 @@ const CONTENT_TYPES: TContentType[] = [
   "case-study",
 ];
 
-const ERROR_INDICATORS = [
-  "404 not found",
-  "page not found",
-  "404 error",
-  "access denied",
-  "403 forbidden",
-  "request forbidden",
-  "something went wrong",
-  "this page doesn't exist",
-  "this page does not exist",
-];
-
 function normalizeWhitespace(value: string): string {
   return value.replace(/\s+/g, " ").trim();
-}
-
-function looksLikeErrorPage(content: string): boolean {
-  const normalized = content.toLowerCase().replace(/\s+/g, " ");
-  return ERROR_INDICATORS.some((indicator) => normalized.includes(indicator));
 }
 
 function parsePublishedDate(value: string): string | undefined {
@@ -68,10 +51,6 @@ export async function fetchContent(url: string): Promise<FetchedContent> {
 
   if (content.length < 200) {
     throw new Error("Fetched content is too short or empty");
-  }
-
-  if (looksLikeErrorPage(content)) {
-    throw new Error("The source appears to be an error, 404, or blocked page");
   }
 
   return {
