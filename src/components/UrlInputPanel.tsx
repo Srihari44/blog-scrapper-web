@@ -72,6 +72,9 @@ export function UrlInputPanel({
     <div className="space-y-4">
       <div className="flex flex-col gap-3 sm:flex-row">
         <div className="flex-1">
+          <label htmlFor="url-input" className="sr-only">
+            Blog URL
+          </label>
           <input
             id="url-input"
             type="url"
@@ -86,7 +89,7 @@ export function UrlInputPanel({
             onPaste={handlePaste}
             disabled={isRunning}
             autoComplete="off"
-            className="w-full rounded-lg border border-white/15 bg-slate-900 px-3 py-3 text-sm text-slate-100 outline-none placeholder:text-slate-400 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/20 disabled:cursor-not-allowed disabled:opacity-60"
+            className="w-full rounded-2xl border border-slate-700 bg-slate-950/80 px-3.5 py-3 text-sm text-slate-100 outline-none shadow-inner shadow-slate-950/40 placeholder:text-slate-500 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/20 disabled:cursor-not-allowed disabled:opacity-60"
           />
           {error && (
             <span className="mt-2 block text-sm text-rose-300" role="alert">
@@ -97,65 +100,21 @@ export function UrlInputPanel({
         <button
           type="button"
           id="add-url-btn"
-          className="inline-flex items-center justify-center rounded-lg bg-emerald-400 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-emerald-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 disabled:cursor-not-allowed disabled:opacity-40"
+          className="inline-flex min-h-11 items-center justify-center rounded-2xl bg-emerald-400 px-5 py-3 text-sm font-semibold text-slate-950 shadow-[0_18px_30px_-18px_rgba(52,211,153,0.9)] transition hover:bg-emerald-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 disabled:cursor-not-allowed disabled:opacity-40"
           onClick={handleAdd}
           disabled={isRunning || !input.trim()}
         >
           Add URL
         </button>
       </div>
-
-      {urls.length > 0 && (
-        <ul className="divide-y divide-white/10" id="url-list">
-          {urls.map((entry) => {
-            return (
-              <li
-                key={entry.id}
-                className="flex items-center gap-3 py-3 text-sm"
-              >
-                <span
-                  className={`h-2 w-2 shrink-0 rounded-full ${
-                    entry.status === "error"
-                      ? "bg-rose-400"
-                      : entry.status === "done"
-                        ? "bg-emerald-400"
-                        : entry.status === "fetching" ||
-                            entry.status === "analyzing"
-                          ? "bg-amber-300"
-                          : "bg-slate-500"
-                  }`}
-                  aria-hidden="true"
-                />
-                <span className="min-w-0 flex-1 truncate" title={entry.url}>
-                  {entry.url}
-                </span>
-                <span className="shrink-0 text-sm capitalize text-slate-400">
-                  {entry.status}
-                </span>
-                {!isRunning &&
-                  entry.status !== "done" &&
-                  entry.status !== "error" && (
-                    <button
-                      type="button"
-                      className="flex min-h-11 min-w-11 items-center justify-center rounded-md text-slate-400 transition hover:bg-white/5 hover:text-slate-100 focus-visible:outline-2 focus-visible:outline-emerald-400"
-                      onClick={() => onRemove(entry.id)}
-                      aria-label={`Remove ${entry.url}`}
-                    >
-                      <X size={14} strokeWidth={2} />
-                    </button>
-                  )}
-              </li>
-            );
-          })}
-        </ul>
-      )}
-
-      <div className="flex flex-wrap items-center gap-4">
+      <div
+        className="sticky top-0 z-10 flex flex-wrap items-center gap-4 rounded-2xl border border-white/10 bg-slate-900/90 px-2 py-2 shadow-[0_18px_30px_-26px_rgba(15,23,42,0.95)] backdrop-blur"
+      >
         {urls.length > 0 && (
           <button
             type="button"
             id="clear-btn"
-            className="min-h-11 px-2 text-sm text-slate-400 underline-offset-4 hover:text-slate-100 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 disabled:cursor-not-allowed disabled:opacity-40"
+            className="min-h-11 px-2 text-sm text-slate-400 underline-offset-4 transition hover:text-slate-100 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 disabled:cursor-not-allowed disabled:opacity-40"
             onClick={onClear}
             disabled={isRunning}
           >
@@ -165,7 +124,7 @@ export function UrlInputPanel({
         <button
           type="button"
           id="analyze-btn"
-          className="ml-auto inline-flex items-center justify-center gap-2 rounded-lg border border-emerald-300/40 px-4 py-2.5 text-sm font-medium text-emerald-200 transition hover:bg-emerald-400/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 disabled:cursor-not-allowed disabled:opacity-40"
+          className="ml-auto inline-flex items-center justify-center gap-2 rounded-2xl border border-emerald-300/40 bg-emerald-400/5 px-4 py-2.5 text-sm font-medium text-emerald-200 transition hover:border-emerald-300/70 hover:bg-emerald-400/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 disabled:cursor-not-allowed disabled:opacity-40"
           onClick={onAnalyze}
           disabled={isRunning || urls.length === 0 || !modelReady}
           title={!modelReady ? "Waiting for model to load…" : ""}
@@ -179,6 +138,61 @@ export function UrlInputPanel({
           )}
         </button>
       </div>
+      {urls.length > 0 && (
+        <ul className="space-y-2" id="url-list">
+          {urls.map((entry) => {
+            const statusTone =
+              entry.status === "error"
+                ? "bg-rose-400/15 text-rose-200 border-rose-400/25"
+                : entry.status === "done"
+                  ? "bg-emerald-400/15 text-emerald-200 border-emerald-400/25"
+                  : entry.status === "fetching" || entry.status === "analyzing"
+                    ? "bg-amber-400/15 text-amber-200 border-amber-400/25"
+                    : "bg-slate-700/70 text-slate-300 border-slate-600";
+
+            return (
+              <li
+                key={entry.id}
+                className="flex items-center gap-3 rounded-xl border border-slate-800 bg-slate-950/50 px-3 py-2.5 text-sm"
+              >
+                <span
+                  className={`h-2.5 w-2.5 shrink-0 rounded-full ${
+                    entry.status === "error"
+                      ? "bg-rose-400"
+                      : entry.status === "done"
+                        ? "bg-emerald-400"
+                        : entry.status === "fetching" ||
+                            entry.status === "analyzing"
+                          ? "bg-amber-300"
+                          : "bg-slate-500"
+                  }`}
+                  aria-hidden="true"
+                />
+                <span className="min-w-0 flex-1 truncate text-slate-200" title={entry.url}>
+                  {entry.url}
+                </span>
+                <span
+                  className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.16em] capitalize ${statusTone}`}
+                >
+                  {entry.status}
+                </span>
+                {!isRunning &&
+                  entry.status !== "done" &&
+                  entry.status !== "error" && (
+                    <button
+                      type="button"
+                      className="flex min-h-11 min-w-11 items-center justify-center rounded-lg text-slate-400 transition hover:bg-white/5 hover:text-slate-100 focus-visible:outline-2 focus-visible:outline-emerald-400"
+                      onClick={() => onRemove(entry.id)}
+                      aria-label={`Remove ${entry.url}`}
+                    >
+                      <X size={14} strokeWidth={2} />
+                    </button>
+                  )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </div>
   );
 }

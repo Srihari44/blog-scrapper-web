@@ -60,73 +60,77 @@ export function ModelBanner({
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950 px-6 py-8"
+        className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 px-6 py-8 backdrop-blur-sm"
       >
         <m.div
-          initial={{ opacity: 0, scale: 0.96, y: 8 }}
+          initial={{ opacity: 0, scale: 0.96, y: 10 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
-          transition={{ duration: 0.24 }}
+          transition={{ duration: 0.24, ease: "easeOut" }}
           role="dialog"
           aria-modal="true"
           aria-labelledby="model-dialog-title"
-          className="w-full max-w-md rounded-xl border border-white/15 bg-slate-900 p-5"
+          className="w-full max-w-xl rounded-[28px] border border-slate-700/80 bg-slate-900/90 p-6 shadow-[0_28px_60px_-30px_rgba(15,23,42,1)]"
         >
-          <div className="flex items-center gap-3">
-            {status.state === "loading" ? (
-              <div className="spinner-large" aria-hidden="true" />
-            ) : (
-              <Icon size={18} strokeWidth={2} aria-hidden="true" />
-            )}
-            <div className="min-w-0 flex-1">
+          <div className="flex items-start gap-4">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-white/15 bg-white/[0.03] text-slate-100">
+              {status.state === "loading" ? (
+                <div className="spinner-large" aria-hidden="true" />
+              ) : (
+                <Icon size={20} strokeWidth={2} aria-hidden="true" />
+              )}
+            </div>
+            <div className="min-w-0 flex-1 pt-1">
               <p
                 id="model-dialog-title"
-                className="text-sm font-semibold text-white"
+                className="text-4xl font-semibold tracking-tight text-slate-50"
               >
                 {cfg.label}
               </p>
-              <p className="mt-1 text-sm text-slate-300">
+              <p className="mt-3 text-base leading-7 text-slate-300">
                 {status.message ??
                   "A local model is required to summarize blogs."}
               </p>
             </div>
           </div>
           {status.state !== "loading" && (
-            <form className="mt-6 space-y-3" onSubmit={onLoadModel}>
-              <label
-                htmlFor="model-path"
-                className="block text-sm font-medium text-slate-200"
-              >
-                Model URL or path
-              </label>
-              <input
-                id="model-path"
-                type="text"
-                value={modelPath}
-                autoFocus
-                onChange={(event) => onModelPathChange(event.target.value)}
-                placeholder="/model.litertlm or https://…"
-                autoComplete="url"
-                required
-                className="w-full rounded-lg border border-white/15 bg-slate-950 px-3 py-2.5 text-sm text-slate-100 outline-none transition placeholder:text-slate-400 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/20"
-              />
-              <p className="text-xs leading-5 text-slate-500">
+            <form className="mt-7 space-y-4" onSubmit={onLoadModel}>
+              <div>
+                <label
+                  htmlFor="model-path"
+                  className="mb-2 block text-base font-medium text-slate-200"
+                >
+                  Model URL or path
+                </label>
+                <input
+                  id="model-path"
+                  type="text"
+                  value={modelPath}
+                  autoFocus
+                  onChange={(event) => onModelPathChange(event.target.value)}
+                  placeholder="/model.litertlm or https://…"
+                  autoComplete="url"
+                  required
+                  className="w-full rounded-2xl border border-slate-700 bg-slate-950/90 px-4 py-3.5 text-base text-slate-100 outline-none transition placeholder:text-slate-500 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/20"
+                />
+              </div>
+              <p className="text-sm leading-6 text-slate-400">
                 Enter a hosted model URL or a path served by this app, or choose
                 a local .litertlm file.
               </p>
-              <div className="flex gap-2">
+              <div className="flex gap-3 pt-2">
                 <button
                   type="submit"
                   disabled={!modelPath.trim()}
-                  className="min-h-11 flex-1 rounded-lg bg-emerald-400 px-4 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-emerald-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="min-h-12 flex-1 rounded-2xl bg-emerald-400 px-4 py-3 text-lg font-semibold text-slate-950 shadow-[0_18px_30px_-18px_rgba(52,211,153,0.9)] transition hover:bg-emerald-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Load model
                 </button>
                 <button
                   type="button"
                   onClick={onChangeModel}
-                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-white/15 px-4 py-2.5 text-sm font-medium text-slate-200 transition hover:bg-white/5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400"
+                  className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-slate-600 bg-slate-900/80 px-4 py-3 text-base font-medium text-slate-100 transition hover:border-slate-500 hover:bg-slate-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400"
                 >
-                  <FileUp size={16} />
+                  <FileUp size={18} />
                   Browse
                 </button>
               </div>

@@ -42,7 +42,7 @@ function parsePublishedDate(value: string): string | undefined {
     return undefined;
   }
 
-  return date.toISOString();
+  return date.toISOString().slice(0, 10);
 }
 
 export async function fetchContent(url: string): Promise<FetchedContent> {

@@ -1,14 +1,13 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, memo } from "react";
 import { m } from "framer-motion";
-import {
-  ArrowUpRight,
-  Clock3,
-  CircleAlert,
-  RotateCcw,
-} from "lucide-react";
+import { ArrowUpRight, Clock3, CircleAlert, RotateCcw } from "lucide-react";
 import type { UrlEntry, BlogSummary } from "../types";
 
-function ResultCard({ result }: { result: BlogSummary }) {
+const ResultCard = memo(function ResultCard({
+  result,
+}: {
+  result: BlogSummary;
+}) {
   const contentType = result.content_type.replace("-", " ");
 
   return (
@@ -16,28 +15,39 @@ function ResultCard({ result }: { result: BlogSummary }) {
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.2 }}
+      className="rounded-2xl border border-slate-800 bg-slate-950/50 p-4"
     >
-      <h3 className="break-words text-lg font-semibold text-slate-100">
+      <div className="flex flex-wrap items-center gap-2 text-[10px] font-medium uppercase tracking-[0.18em] text-slate-400">
+        <span className="rounded-full border border-white/10 bg-slate-900 px-2 py-1 capitalize">
+          {contentType}
+        </span>
+        <span>{result.read_time_minutes} min read</span>
+        {result.published_date && <span>· {result.published_date}</span>}
+      </div>
+
+      <h3 className="mt-3 break-words text-xl font-semibold tracking-tight text-slate-100">
         {result.title}
       </h3>
 
-      <p className="mt-2 max-w-3xl text-sm leading-7 text-slate-300">
+      <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-300">
         {result.summary}
       </p>
 
-      <p className="mt-3 text-sm text-slate-400">
-        {contentType} · {result.read_time_minutes} min read
-        {result.published_date && ` · ${result.published_date}`}
-      </p>
-
       {result.tags.length > 0 && (
-        <p className="mt-1 break-words text-sm text-slate-400">
-          Topics: {result.tags.join(" · ")}
-        </p>
+        <div className="mt-4 flex flex-wrap gap-2">
+          {result.tags.map((tag) => (
+            <span
+              key={tag}
+              className="rounded-full border border-emerald-400/20 bg-emerald-400/5 px-2.5 py-1 text-[11px] text-emerald-200"
+            >
+              {tag}
+            </span>
+          ))}
+        </div>
       )}
     </m.div>
   );
-}
+});
 
 interface UrlCardProps {
   entry: UrlEntry;
@@ -45,7 +55,11 @@ interface UrlCardProps {
   retryDisabled: boolean;
 }
 
-export function UrlCard({ entry, onRetry, retryDisabled }: UrlCardProps) {
+export const UrlCard = memo(function UrlCard({
+  entry,
+  onRetry,
+  retryDisabled,
+}: UrlCardProps) {
   const [liveElapsed, setLiveElapsed] = useState<number | undefined>(undefined);
 
   useEffect(() => {
@@ -70,17 +84,20 @@ export function UrlCard({ entry, onRetry, retryDisabled }: UrlCardProps) {
         setLiveElapsed(undefined);
       };
     }
+
+    setLiveElapsed(undefined);
+    return undefined;
   }, [entry.status, entry.startTime]);
 
   const displayedTime = entry.elapsedSeconds ?? liveElapsed;
 
-  const hostname = (() => {
+  const hostname = useMemo(() => {
     try {
       return new URL(entry.url).hostname;
     } catch {
       return entry.url;
     }
-  })();
+  }, [entry.url]);
 
   return (
     <m.article
@@ -88,7 +105,7 @@ export function UrlCard({ entry, onRetry, retryDisabled }: UrlCardProps) {
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.2, ease: "easeOut" }}
-      className="border-b border-white/10 pb-5"
+      className="rounded-2xl border border-white/10 bg-slate-950/40 p-3 shadow-[0_18px_30px_-29px_rgba(15,23,42,0.9)] transition hover:border-slate-600/80 hover:bg-slate-950/60"
       id={`card-${entry.id}`}
     >
       <div className="flex flex-wrap items-center gap-2">
@@ -151,7 +168,7 @@ export function UrlCard({ entry, onRetry, retryDisabled }: UrlCardProps) {
             key="error"
             initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
-            className="flex items-start justify-between gap-3 text-sm text-rose-200"
+            className="flex items-start justify-between gap-3 rounded-2xl border border-rose-400/20 bg-rose-400/5 p-4 text-sm text-rose-200"
           >
             <span className="flex min-w-0 items-start gap-2">
               <CircleAlert size={20} strokeWidth={2} className="shrink-0" />
@@ -172,4 +189,4 @@ export function UrlCard({ entry, onRetry, retryDisabled }: UrlCardProps) {
       </div>
     </m.article>
   );
-}
+});
