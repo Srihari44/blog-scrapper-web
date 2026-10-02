@@ -1,14 +1,20 @@
 import type { FunctionDeclaration, Tool } from "@litert-lm/core";
 
-const MAX_INPUT_CHARS = 48_000;
+/*
+ * Keep the input comfortably below the 4096-token context limit.
+ *
+ * 10,000 characters is roughly ~2,500 tokens for typical English text,
+ * leaving room for the system prompt, tool schema, and generated output.
+ */
+const MAX_INPUT_CHARS = 10_000;
 
 function prepareContentForModel(content: string): string {
   if (content.length <= MAX_INPUT_CHARS) {
     return content;
   }
 
-  const headLength = 40_000;
-  const tailLength = 8_000;
+  const headLength = 8_000;
+  const tailLength = 2_000;
 
   return [
     content.slice(0, headLength),
@@ -20,34 +26,70 @@ function prepareContentForModel(content: string): string {
 // LiteRT-LM Engine singleton
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let engine: any = null;
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let EngineClass: any = null;
 
-export type ProgressCallback = (progress: number, message: string) => void;
+export type ProgressCallback = (
+  progress: number,
+  message: string,
+) => void;
 
-export function resetEngine(): void {
+/**
+ * Fully release the current LiteRT-LM engine.
+ *
+ * This is important because simply setting engine = null does not
+ * deterministically release the underlying WASM/WebGPU resources.
+ */
+export async function resetEngine(): Promise<void> {
+  const currentEngine = engine;
+
+  // Clear references first so a concurrent caller cannot accidentally
+  // reuse the engine while it is being disposed.
   engine = null;
   EngineClass = null;
+
+  if (currentEngine) {
+    try {
+      await currentEngine.delete();
+    } catch (error) {
+      console.warn("Failed to delete LiteRT-LM engine:", error);
+    }
+  }
 }
 
 export async function loadEngine(
   modelPath: string,
   onProgress?: ProgressCallback,
 ): Promise<void> {
-  if (engine) return;
+  if (engine) {
+    return;
+  }
 
   onProgress?.(0, "Importing LiteRT-LM…");
 
   const mod = await import("@litert-lm/core");
+
   EngineClass = mod.Engine;
 
   onProgress?.(10, "Initialising engine…");
 
   engine = await EngineClass.create({
     model: modelPath,
+
     mainExecutorSettings: {
-      maxNumTokens: 16384,
+      /*
+       * Your previous 16,384 setting is unnecessary for this app.
+       *
+       * You previously hit:
+       *   27863 >= 4096
+       *
+       * so keep the runtime context at 4096 and constrain the article
+       * input separately in prepareContentForModel().
+       */
+      maxNumTokens: 4096,
     },
+
     onProgress: (p: number) => {
       onProgress?.(
         10 + Math.round(p * 85),
@@ -75,23 +117,40 @@ const SUMMARY_FUNCTION: FunctionDeclaration = {
         type: "string",
         description: "The article title, kept concise and faithful to the source.",
       },
+
       summary: {
         type: "string",
         description: "A concise summary in 2–3 sentences.",
       },
+
       tags: {
         type: "array",
-        items: { type: "string" },
+        items: {
+          type: "string",
+        },
         description:
           'Specific article topics; avoid generic tags like "Technology".',
       },
+
       content_type: {
         type: "string",
-        enum: ["tutorial", "opinion", "news", "reference", "case-study"],
+        enum: [
+          "tutorial",
+          "opinion",
+          "news",
+          "reference",
+          "case-study",
+        ],
         description: "The type of content, not its emotional tone.",
       },
     },
-    required: ["title", "summary", "tags", "content_type"],
+
+    required: [
+      "title",
+      "summary",
+      "tags",
+      "content_type",
+    ],
   },
 };
 
@@ -123,38 +182,61 @@ function getResponseText(response: unknown): string | undefined {
       }
 
       const text = (item as { text?: unknown }).text;
-      return typeof text === "string" ? [text] : [];
+
+      return typeof text === "string"
+        ? [text]
+        : [];
     });
 
-    return textParts.length > 0 ? textParts.join("") : undefined;
+    return textParts.length > 0
+      ? textParts.join("")
+      : undefined;
   }
 
   return undefined;
 }
 
-function findSummaryToolArguments(response: unknown): unknown | undefined {
-  if (typeof response !== "object" || response === null) {
+function findSummaryToolArguments(
+  response: unknown,
+): unknown | undefined {
+  if (
+    typeof response !== "object" ||
+    response === null
+  ) {
     return undefined;
   }
 
-  const toolCalls = (response as { tool_calls?: unknown }).tool_calls;
+  const toolCalls = (
+    response as { tool_calls?: unknown }
+  ).tool_calls;
 
   if (!Array.isArray(toolCalls)) {
     return undefined;
   }
 
   for (const call of toolCalls) {
-    if (typeof call !== "object" || call === null) {
+    if (
+      typeof call !== "object" ||
+      call === null
+    ) {
       continue;
     }
 
-    const functionCall = (call as { function?: unknown }).function;
+    const functionCall = (
+      call as { function?: unknown }
+    ).function;
 
-    if (typeof functionCall !== "object" || functionCall === null) {
+    if (
+      typeof functionCall !== "object" ||
+      functionCall === null
+    ) {
       continue;
     }
 
-    const { name, arguments: args } = functionCall as {
+    const {
+      name,
+      arguments: args,
+    } = functionCall as {
       name?: unknown;
       arguments?: unknown;
     };
@@ -167,7 +249,9 @@ function findSummaryToolArguments(response: unknown): unknown | undefined {
   return undefined;
 }
 
-function getSummaryToolArguments(response: unknown): unknown {
+function getSummaryToolArguments(
+  response: unknown,
+): unknown {
   const args = findSummaryToolArguments(response);
 
   if (args !== undefined) {
@@ -178,17 +262,30 @@ function getSummaryToolArguments(response: unknown): unknown {
     "Model did not return the blog summary tool call. Text response:",
     getResponseText(response) ?? "(no text response)",
   );
-  throw new Error("Model did not return the blog summary tool call");
+
+  throw new Error(
+    "Model did not return the blog summary tool call",
+  );
 }
 
-export async function summarizeBlog(content: string): Promise<unknown> {
+export async function summarizeBlog(
+  content: string,
+): Promise<unknown> {
   if (!engine) {
     throw new Error("Engine not loaded");
   }
 
   const modelContent = prepareContentForModel(content);
+
+  /*
+   * Create one conversation per article.
+   *
+   * We intentionally do NOT reuse the conversation between articles,
+   * because each blog post is an independent task.
+   */
   const chat = await engine.createConversation({
     enableConstrainedDecoding: true,
+
     preface: {
       messages: [
         {
@@ -196,13 +293,34 @@ export async function summarizeBlog(content: string): Promise<unknown> {
           content: `You are a blog analysis assistant. Analyze the article and call ${SUMMARY_TOOL_NAME} with its title, a 2–3 sentence summary, 3–6 specific tags, and one allowed content type. Use only information supported by the article; do not invent facts.`,
         },
       ],
+
       tools: [SUMMARY_TOOL],
     },
   });
 
-  const response = await chat.sendMessage(
-    `Analyze this blog post:\n\n${modelContent}`,
-  );
+  try {
+    const response = await chat.sendMessage(
+      `Analyze this blog post:\n\n${modelContent}`,
+    );
 
-  return getSummaryToolArguments(response);
+    return getSummaryToolArguments(response);
+  } finally {
+    /*
+     * CRITICAL:
+     *
+     * Release the native/WASM conversation immediately after each
+     * article. Without this, repeated processing can accumulate
+     * conversation/session resources.
+     *
+     * The finally block also guarantees cleanup when inference throws.
+     */
+    try {
+      await chat.delete();
+    } catch (error) {
+      console.warn(
+        "Failed to delete LiteRT-LM conversation:",
+        error,
+      );
+    }
+  }
 }

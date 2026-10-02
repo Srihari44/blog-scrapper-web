@@ -23,20 +23,30 @@ import {
 import "./App.css";
 
 let idCounter = 0;
+
 const genId = () => `url-${++idCounter}`;
 
 function App() {
   const [urls, setUrls] = useState<UrlEntry[]>([]);
   const [isRunning, setIsRunning] = useState(false);
+
   const [modelStatus, setModelStatus] = useState<ModelStatus>({
     state: "idle",
   });
+
   const [modelFile, setModelFile] = useState("");
   const [modelPathInput, setModelPathInput] = useState("");
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const resultsScrollRef = useRef<HTMLDivElement>(null);
+
   const abortRef = useRef(false);
+
+  /*
+   * Keep track of a locally selected .litertlm Blob URL so we can
+   * revoke it when the model is replaced.
+   */
+  const modelObjectUrlRef = useRef<string | null>(null);
 
   const handleLoadModel = useCallback(async (path: string) => {
     setModelStatus({
@@ -65,40 +75,115 @@ function App() {
     }
   }, []);
 
-  const handleChangeModel = () => {
+  const handleChangeModel = useCallback(() => {
+    /*
+     * Don't allow replacing the model while an analysis batch
+     * is running. This avoids disposing the engine while inference
+     * is using it.
+     */
+    if (isRunning) {
+      return;
+    }
+
     fileInputRef.current?.click();
-  };
+  }, [isRunning]);
 
-  const handleSubmitModelPath = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
+  const handleSubmitModelPath = useCallback(
+    (event: FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
 
-    const path = modelPathInput.trim();
+      /*
+       * Don't replace the engine during an active batch.
+       */
+      if (isRunning) {
+        return;
+      }
 
-    if (!path || modelStatus.state === "loading") {
-      return;
-    }
+      const path = modelPathInput.trim();
 
-    setModelFile(path);
-    void handleLoadModel(path);
-  };
+      if (!path || modelStatus.state === "loading") {
+        return;
+      }
 
-  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+      setModelFile(path);
 
-    if (!file) {
-      return;
-    }
+      void (async () => {
+        /*
+         * Fully release the old engine before loading the new one.
+         */
+        await resetEngine();
 
-    resetEngine();
+        await handleLoadModel(path);
+      })();
+    },
+    [handleLoadModel, isRunning, modelPathInput, modelStatus.state],
+  );
 
-    const objectUrl = URL.createObjectURL(file);
+  const handleFileChange = useCallback(
+    (e: ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
 
-    setModelFile(file.name);
+      if (!file) {
+        return;
+      }
 
-    void handleLoadModel(objectUrl);
+      /*
+       * Don't replace the engine during an active batch.
+       */
+      if (isRunning) {
+        e.target.value = "";
+        return;
+      }
 
-    e.target.value = "";
-  };
+      void (async () => {
+        /*
+         * Release the previous engine first.
+         */
+        await resetEngine();
+
+        /*
+         * Revoke the previous local model Blob URL.
+         */
+        if (modelObjectUrlRef.current) {
+          URL.revokeObjectURL(modelObjectUrlRef.current);
+
+          modelObjectUrlRef.current = null;
+        }
+
+        const objectUrl = URL.createObjectURL(file);
+
+        modelObjectUrlRef.current = objectUrl;
+
+        setModelFile(file.name);
+
+        await handleLoadModel(objectUrl);
+      })();
+
+      /*
+       * Allow selecting the same file again later.
+       */
+      e.target.value = "";
+    },
+    [handleLoadModel, isRunning],
+  );
+
+  /*
+   * Release the engine and any local model Blob URL when the
+   * React application is unmounted.
+   */
+  useEffect(() => {
+    return () => {
+      abortRef.current = true;
+
+      void resetEngine();
+
+      if (modelObjectUrlRef.current) {
+        URL.revokeObjectURL(modelObjectUrlRef.current);
+
+        modelObjectUrlRef.current = null;
+      }
+    };
+  }, []);
 
   const addUrl = useCallback((url: string) => {
     setUrls((prev) => [
@@ -138,6 +223,7 @@ function App() {
     }
 
     abortRef.current = false;
+
     setIsRunning(true);
 
     /*
@@ -148,106 +234,116 @@ function App() {
     /*
      * Use a snapshot of the current URLs.
      *
-     * This prevents the loop from being affected by state updates
-     * caused by updateEntry().
+     * This prevents the loop from being affected by state
+     * updates caused by updateEntry().
      */
     const entriesToProcess = [...urls];
 
-    for (const entry of entriesToProcess) {
-      if (abortRef.current) {
-        break;
-      }
-
-      const startTime = performance.now();
-      const startTimestamp = Date.now();
-
-      const getElapsed = () =>
-        parseFloat(((performance.now() - startTime) / 1000).toFixed(1));
-
+    try {
       /*
-       * ---------------------------------------------------------
-       * STEP 1: Fetch article
-       * ---------------------------------------------------------
+       * IMPORTANT:
+       *
+       * Keep this loop sequential.
+       *
+       * We do NOT use Promise.all() because E4B inference is
+       * resource-intensive and multiple simultaneous conversations
+       * would dramatically increase WASM/WebGPU memory pressure.
        */
-      updateEntry(entry.id, {
-        status: "fetching",
-        startTime: startTimestamp,
-        error: undefined,
-      });
+      for (const entry of entriesToProcess) {
+        if (abortRef.current) {
+          break;
+        }
 
-      let fetchedContent;
+        const startTime = performance.now();
+        const startTimestamp = Date.now();
 
-      try {
-        fetchedContent = await fetchContent(entry.url);
-      } catch (err) {
+        const getElapsed = () =>
+          parseFloat(((performance.now() - startTime) / 1000).toFixed(1));
+
+        /*
+         * ---------------------------------------------------------
+         * STEP 1: Fetch article
+         * ---------------------------------------------------------
+         */
         updateEntry(entry.id, {
-          status: "error",
-          error: err instanceof Error ? err.message : "Failed to fetch content",
-          elapsedSeconds: getElapsed(),
+          status: "fetching",
+          startTime: startTimestamp,
+          error: undefined,
         });
 
-        continue;
-      }
+        let fetchedContent;
 
-      if (abortRef.current) {
-        break;
-      }
+        try {
+          fetchedContent = await fetchContent(entry.url);
+        } catch (err) {
+          updateEntry(entry.id, {
+            status: "error",
+            error:
+              err instanceof Error ? err.message : "Failed to fetch content",
+            elapsedSeconds: getElapsed(),
+          });
 
-      /*
-       * ---------------------------------------------------------
-       * STEP 2: Analyze article with the local LLM
-       * ---------------------------------------------------------
-       *
-       * The LLM is responsible for:
-       *
-       * - a fallback title
-       * - summary
-       * - tags
-       * - content_type
-       *
-       * The source title takes precedence and reading time is calculated
-       * outside the LLM.
-       */
-      updateEntry(entry.id, {
-        status: "analyzing",
-      });
-
-      try {
-        const analysis = await summarizeBlog(fetchedContent.content);
+          continue;
+        }
 
         if (abortRef.current) {
           break;
         }
 
-        if (!isBlogAnalysis(analysis)) {
-          throw new Error("Model returned an invalid structured summary");
-        }
-
         /*
-         * Title and reading time are normalized deterministically, and the
-         * tool arguments are checked before they are used.
+         * ---------------------------------------------------------
+         * STEP 2: Analyze article with the local LLM
+         * ---------------------------------------------------------
+         *
+         * summarizeBlog() creates a conversation specifically
+         * for this article and deterministically deletes it
+         * after inference.
          */
-        const finalResult = normalizeBlogSummary(
-          analysis,
-          fetchedContent.content,
-          fetchedContent.title,
-        );
+        updateEntry(entry.id, {
+          status: "analyzing",
+        });
 
-        updateEntry(entry.id, {
-          status: "done",
-          result: finalResult,
-          elapsedSeconds: getElapsed(),
-        });
-      } catch (err) {
-        updateEntry(entry.id, {
-          status: "error",
-          error: err instanceof Error ? err.message : "LLM error",
-          elapsedSeconds: getElapsed(),
-        });
+        try {
+          const analysis = await summarizeBlog(fetchedContent.content);
+
+          if (abortRef.current) {
+            break;
+          }
+
+          if (!isBlogAnalysis(analysis)) {
+            throw new Error("Model returned an invalid structured summary");
+          }
+
+          /*
+           * Title and reading time are normalized deterministically,
+           * and the tool arguments are checked before they are used.
+           */
+          const finalResult = normalizeBlogSummary(
+            analysis,
+            fetchedContent.content,
+            fetchedContent.title,
+          );
+
+          updateEntry(entry.id, {
+            status: "done",
+            result: finalResult,
+            elapsedSeconds: getElapsed(),
+          });
+        } catch (err) {
+          updateEntry(entry.id, {
+            status: "error",
+            error: err instanceof Error ? err.message : "LLM error",
+            elapsedSeconds: getElapsed(),
+          });
+        }
       }
+    } finally {
+      /*
+       * Always reset the running state, including unexpected
+       * errors outside the per-URL try/catch blocks.
+       */
+      setIsRunning(false);
     }
-
-    setIsRunning(false);
   }, [urls, isRunning, updateEntry]);
 
   const handleExportJson = useCallback(() => {
@@ -370,6 +466,7 @@ function App() {
           className="hidden"
           onChange={handleFileChange}
           id="model-file-input"
+          disabled={isRunning}
         />
 
         <m.div
